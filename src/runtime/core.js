@@ -1688,6 +1688,8 @@
             updateScrollOffsetForFocus: updateScrollOffsetForFocus,
             centerVisibleColumns: centerVisibleColumns,
             projectArrangeScope: projectArrangeScope,
+            getRibbonActionSpecs: getRibbonActionSpecs,
+            dispatchRibbonAction: dispatchRibbonAction,
             setWindowFloating: setWindowFloating,
             toggleWindowFloating: toggleWindowFloating,
             setRuleFloating: setRuleFloating,

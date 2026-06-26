@@ -1697,6 +1697,8 @@
             updateScrollOffsetForFocus: updateScrollOffsetForFocus,
             centerVisibleColumns: centerVisibleColumns,
             projectArrangeScope: projectArrangeScope,
+            getRibbonActionSpecs: getRibbonActionSpecs,
+            dispatchRibbonAction: dispatchRibbonAction,
             setWindowFloating: setWindowFloating,
             toggleWindowFloating: toggleWindowFloating,
             setRuleFloating: setRuleFloating,
@@ -1946,6 +1948,51 @@
         };
     }
 
+    var RIBBON_ACTION_SPECS = [
+        { name: "kwin-ribbon-focus-column-left", title: "Ribbon: Focus column left", shortcut: "", handler: focusColumnLeft },
+        { name: "kwin-ribbon-focus-column-right", title: "Ribbon: Focus column right", shortcut: "", handler: focusColumnRight },
+        { name: "kwin-ribbon-focus-window-up", title: "Ribbon: Focus window up", shortcut: "", handler: focusWindowUp },
+        { name: "kwin-ribbon-focus-window-down", title: "Ribbon: Focus window down", shortcut: "", handler: focusWindowDown },
+        { name: "kwin-ribbon-move-column-left", title: "Ribbon: Move column left", shortcut: "", handler: moveColumnLeft },
+        { name: "kwin-ribbon-move-column-right", title: "Ribbon: Move column right", shortcut: "", handler: moveColumnRight },
+        { name: "kwin-ribbon-move-window-up", title: "Ribbon: Move window up", shortcut: "", handler: moveWindowUp },
+        { name: "kwin-ribbon-move-window-down", title: "Ribbon: Move window down", shortcut: "", handler: moveWindowDown }
+    ];
+
+    function getRibbonActionSpecs() {
+        var result = [];
+        var i;
+        var spec;
+        for (i = 0; i < RIBBON_ACTION_SPECS.length; i += 1) {
+            spec = RIBBON_ACTION_SPECS[i];
+            result.push({
+                name: spec.name,
+                title: spec.title,
+                shortcut: spec.shortcut
+            });
+        }
+        return result;
+    }
+
+    function actionSpecByName(name) {
+        var i;
+        for (i = 0; i < RIBBON_ACTION_SPECS.length; i += 1) {
+            if (RIBBON_ACTION_SPECS[i].name === name) {
+                return RIBBON_ACTION_SPECS[i];
+            }
+        }
+        return null;
+    }
+
+    function dispatchRibbonAction(state, actionName, scope) {
+        var spec = actionSpecByName(actionName);
+        var value = scope || {};
+        if (!spec) {
+            return null;
+        }
+        return spec.handler(state, value.outputId || "default", normalizeWorkspaceIndex(value.workspaceIndex));
+    }
+
     function signalConnect(signal, handler) {
         if (signal && typeof signal.connect === "function") {
             signal.connect(handler);
@@ -1981,6 +2028,7 @@
         var registry = emptyMap();
         var started = false;
         var lastProjection = null;
+        var shortcutsRegistered = false;
 
         function classify(windowRef, fallbackId) {
             return classifyWindow(windowRef, { fallbackId: fallbackId });
@@ -2069,6 +2117,7 @@
                 signalConnect(adapterEnv.workspace.activeWindowChanged, handleActiveWindowChanged);
                 signalConnect(adapterEnv.workspace.clientActivated, handleActiveWindowChanged);
             }
+            registerShortcuts();
             return syncWindows();
         }
 
@@ -2112,6 +2161,54 @@
             return projection;
         }
 
+        function activateLocation(location) {
+            var columnEntry;
+            var windowId;
+            var entry;
+            if (!location || typeof adapterEnv.activateWindow !== "function") {
+                return;
+            }
+            columnEntry = getWorkspace(state, location.outputId, location.workspaceIndex).columns[location.columnIndex];
+            if (!columnEntry) {
+                return;
+            }
+            windowId = columnEntry.windows[location.windowIndex];
+            entry = registry[windowId];
+            if (entry && entry.windowRef) {
+                adapterEnv.activateWindow(entry.windowRef);
+            }
+        }
+
+        function dispatchAction(actionName, scope) {
+            var targetScope = defaultArrangeScope(scope);
+            var location = dispatchRibbonAction(state, actionName, targetScope);
+            if (location) {
+                arrange(targetScope);
+                activateLocation(location);
+            }
+            return location;
+        }
+
+        function registerShortcuts() {
+            var specs;
+            var i;
+            var spec;
+            if (shortcutsRegistered || options.enableWindowManagementShortcuts === false || typeof adapterEnv.registerShortcut !== "function") {
+                return false;
+            }
+            shortcutsRegistered = true;
+            specs = getRibbonActionSpecs();
+            for (i = 0; i < specs.length; i += 1) {
+                spec = specs[i];
+                adapterEnv.registerShortcut(spec.name, spec.title, spec.shortcut, (function (actionName) {
+                    return function () {
+                        dispatchAction(actionName);
+                    };
+                }(spec.name)));
+            }
+            return true;
+        }
+
         return {
             state: state,
             registry: registry,
@@ -2122,6 +2219,8 @@
             handleWindowRemoved: handleWindowRemoved,
             handleActiveWindowChanged: handleActiveWindowChanged,
             arrange: arrange,
+            dispatchAction: dispatchAction,
+            registerShortcuts: registerShortcuts,
             lastProjection: function () {
                 return lastProjection;
             }

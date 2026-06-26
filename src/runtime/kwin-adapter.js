@@ -33,6 +33,7 @@
         var registry = emptyMap();
         var started = false;
         var lastProjection = null;
+        var shortcutsRegistered = false;
 
         function classify(windowRef, fallbackId) {
             return classifyWindow(windowRef, { fallbackId: fallbackId });
@@ -121,6 +122,7 @@
                 signalConnect(adapterEnv.workspace.activeWindowChanged, handleActiveWindowChanged);
                 signalConnect(adapterEnv.workspace.clientActivated, handleActiveWindowChanged);
             }
+            registerShortcuts();
             return syncWindows();
         }
 
@@ -164,6 +166,54 @@
             return projection;
         }
 
+        function activateLocation(location) {
+            var columnEntry;
+            var windowId;
+            var entry;
+            if (!location || typeof adapterEnv.activateWindow !== "function") {
+                return;
+            }
+            columnEntry = getWorkspace(state, location.outputId, location.workspaceIndex).columns[location.columnIndex];
+            if (!columnEntry) {
+                return;
+            }
+            windowId = columnEntry.windows[location.windowIndex];
+            entry = registry[windowId];
+            if (entry && entry.windowRef) {
+                adapterEnv.activateWindow(entry.windowRef);
+            }
+        }
+
+        function dispatchAction(actionName, scope) {
+            var targetScope = defaultArrangeScope(scope);
+            var location = dispatchRibbonAction(state, actionName, targetScope);
+            if (location) {
+                arrange(targetScope);
+                activateLocation(location);
+            }
+            return location;
+        }
+
+        function registerShortcuts() {
+            var specs;
+            var i;
+            var spec;
+            if (shortcutsRegistered || options.enableWindowManagementShortcuts === false || typeof adapterEnv.registerShortcut !== "function") {
+                return false;
+            }
+            shortcutsRegistered = true;
+            specs = getRibbonActionSpecs();
+            for (i = 0; i < specs.length; i += 1) {
+                spec = specs[i];
+                adapterEnv.registerShortcut(spec.name, spec.title, spec.shortcut, (function (actionName) {
+                    return function () {
+                        dispatchAction(actionName);
+                    };
+                }(spec.name)));
+            }
+            return true;
+        }
+
         return {
             state: state,
             registry: registry,
@@ -174,6 +224,8 @@
             handleWindowRemoved: handleWindowRemoved,
             handleActiveWindowChanged: handleActiveWindowChanged,
             arrange: arrange,
+            dispatchAction: dispatchAction,
+            registerShortcuts: registerShortcuts,
             lastProjection: function () {
                 return lastProjection;
             }

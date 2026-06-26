@@ -100,3 +100,26 @@ projectionAdapter.arrange({ outputId: "screen-1", workspaceIndex: 0 });
 assert.deepEqual(plain(firstWindow.frameGeometry), { x: 10, y: 20, width: 300, height: 200 });
 assert.deepEqual(plain(secondWindow.frameGeometry), { x: 320, y: 20, width: 300, height: 200 });
 assert.equal(projectionAdapter.lastProjection().frames.length, 2);
+
+const registered = [];
+const activated = [];
+const actionFirst = { internalId: "action-1", output: "screen-1" };
+const actionSecond = { internalId: "action-2", output: "screen-1" };
+const actionAdapter = api.createKWinAdapter({
+  registerShortcut: (name, title, shortcut, callback) => registered.push({ name, title, shortcut, callback }),
+  activateWindow: (windowRef) => activated.push(windowRef.internalId),
+  getArrangeArea: () => ({ x: 0, y: 0, width: 100, height: 100 }),
+  getActiveWindow: () => actionSecond
+});
+
+actionAdapter.handleWindowAdded(actionFirst);
+actionAdapter.handleWindowAdded(actionSecond);
+assert.equal(actionAdapter.registerShortcuts(), true);
+assert.equal(registered.every((entry) => entry.shortcut === ""), true);
+registered.find((entry) => entry.name === "kwin-ribbon-focus-column-left").callback();
+assert.equal(actionAdapter.state.lastTiledWindowId, "action-1");
+assert.deepEqual(activated, ["action-1"]);
+assert.equal(actionFirst.frameGeometry.width, 100);
+
+const disabledAdapter = api.createKWinAdapter({ registerShortcut: () => registered.push("disabled") }, { enableWindowManagementShortcuts: false });
+assert.equal(disabledAdapter.registerShortcuts(), false);
