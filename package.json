@@ -6,7 +6,7 @@
   "scripts": {
     "build": "node scripts/build.js",
     "build:check": "node scripts/build.js --check",
-    "test": "node tests/package.test.js && node tests/runtime.test.js && node tests/window-classification.test.js && node tests/arrange.test.js && node tests/actions.test.js && node tests/kwin-adapter.test.js",
+    "test": "node tests/package.test.js && node tests/runtime.test.js && node tests/window-classification.test.js && node tests/arrange.test.js && node tests/actions.test.js && node tests/kwin-environment.test.js && node tests/kwin-adapter.test.js",
     "check": "npm run build:check && node --check contents/code/main.js && npm test",
     "validate": "npm run check",
     "kwin:install": "npm run build && kpackagetool6 --type=KWin/Script -i .",

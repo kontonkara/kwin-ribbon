@@ -1699,6 +1699,9 @@
             outputIdFromWindow: outputIdFromWindow,
             workspaceIndexFromWindow: workspaceIndexFromWindow,
             classifyWindow: classifyWindow,
+            isKWinRuntime: isKWinRuntime,
+            createKWinEnvironment: createKWinEnvironment,
+            readKWinOptions: readKWinOptions,
             createKWinAdapter: createKWinAdapter
         };
     }

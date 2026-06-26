@@ -12,6 +12,7 @@ const sourceFiles = [
   path.join(root, "src", "runtime", "classification.js"),
   path.join(root, "src", "runtime", "arrange.js"),
   path.join(root, "src", "runtime", "actions.js"),
+  path.join(root, "src", "runtime", "kwin-environment.js"),
   path.join(root, "src", "runtime", "kwin-adapter.js"),
   path.join(root, "src", "runtime", "bootstrap.js"),
   path.join(root, "src", "runtime", "footer.js")
