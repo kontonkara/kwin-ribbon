@@ -1711,6 +1711,7 @@
             isKWinRuntime: isKWinRuntime,
             createKWinEnvironment: createKWinEnvironment,
             readKWinOptions: readKWinOptions,
+            bootstrapKWin: bootstrapKWin,
             createKWinAdapter: createKWinAdapter
         };
     }
@@ -2197,6 +2198,37 @@
         });
     }
 
+    function bootstrapKWin(root) {
+        var globalRoot = root || {};
+        var api = globalRoot.KWinRibbon;
+        var env;
+        var adapter;
+        if (!isKWinRuntime(globalRoot)) {
+            return null;
+        }
+        if (globalRoot.__kwinRibbonAdapter) {
+            return globalRoot.__kwinRibbonAdapter;
+        }
+        env = createKWinEnvironment(globalRoot);
+        adapter = createKWinAdapter(env, readKWinOptions(env));
+        globalRoot.__kwinRibbonAdapter = adapter;
+        globalRoot.kwinRibbonDebugSnapshot = function () {
+            return adapter.debugSnapshot();
+        };
+        if (api) {
+            api.adapter = adapter;
+            api.debugSnapshot = globalRoot.kwinRibbonDebugSnapshot;
+        }
+        env.print("kwin-ribbon loaded " + VERSION);
+        try {
+            adapter.start();
+            adapter.arrange();
+        } catch (error) {
+            env.print("kwin-ribbon startup failed: " + error);
+        }
+        return adapter;
+    }
+
     function signalConnect(signal, handler) {
         if (signal && typeof signal.connect === "function") {
             signal.connect(handler);
@@ -2315,11 +2347,34 @@
             }
             started = true;
             if (adapterEnv.workspace) {
-                signalConnect(adapterEnv.workspace.windowAdded, handleWindowAdded);
-                signalConnect(adapterEnv.workspace.windowRemoved, handleWindowRemoved);
-                signalConnect(adapterEnv.workspace.windowDeleted, handleWindowRemoved);
-                signalConnect(adapterEnv.workspace.activeWindowChanged, handleActiveWindowChanged);
-                signalConnect(adapterEnv.workspace.clientActivated, handleActiveWindowChanged);
+                signalConnect(adapterEnv.workspace.windowAdded, function (windowRef) {
+                    handleWindowAdded(windowRef);
+                    arrange();
+                });
+                signalConnect(adapterEnv.workspace.windowRemoved, function (windowRef) {
+                    handleWindowRemoved(windowRef);
+                    arrange();
+                });
+                signalConnect(adapterEnv.workspace.windowDeleted, function (windowRef) {
+                    handleWindowRemoved(windowRef);
+                    arrange();
+                });
+                signalConnect(adapterEnv.workspace.activeWindowChanged, function (windowRef) {
+                    handleActiveWindowChanged(windowRef || adapterActiveWindow(adapterEnv));
+                    arrange();
+                });
+                signalConnect(adapterEnv.workspace.clientActivated, function (windowRef) {
+                    handleActiveWindowChanged(windowRef || adapterActiveWindow(adapterEnv));
+                    arrange();
+                });
+                signalConnect(adapterEnv.workspace.currentDesktopChanged, function () {
+                    syncWindows();
+                    arrange();
+                });
+                signalConnect(adapterEnv.workspace.currentVirtualDesktopChanged, function () {
+                    syncWindows();
+                    arrange();
+                });
             }
             registerShortcuts();
             return syncWindows();
@@ -2468,5 +2523,8 @@
     }
 
     root.KWinRibbon = createApi();
+    if (isKWinRuntime(root)) {
+        bootstrapKWin(root);
+    }
 
 }(this));

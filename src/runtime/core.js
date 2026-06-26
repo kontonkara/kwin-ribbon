@@ -1702,6 +1702,7 @@
             isKWinRuntime: isKWinRuntime,
             createKWinEnvironment: createKWinEnvironment,
             readKWinOptions: readKWinOptions,
+            bootstrapKWin: bootstrapKWin,
             createKWinAdapter: createKWinAdapter
         };
     }

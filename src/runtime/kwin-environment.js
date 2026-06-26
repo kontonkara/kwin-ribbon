@@ -198,3 +198,34 @@
             debugLogging: read("debugLogging", DEFAULTS.debugLogging)
         });
     }
+
+    function bootstrapKWin(root) {
+        var globalRoot = root || {};
+        var api = globalRoot.KWinRibbon;
+        var env;
+        var adapter;
+        if (!isKWinRuntime(globalRoot)) {
+            return null;
+        }
+        if (globalRoot.__kwinRibbonAdapter) {
+            return globalRoot.__kwinRibbonAdapter;
+        }
+        env = createKWinEnvironment(globalRoot);
+        adapter = createKWinAdapter(env, readKWinOptions(env));
+        globalRoot.__kwinRibbonAdapter = adapter;
+        globalRoot.kwinRibbonDebugSnapshot = function () {
+            return adapter.debugSnapshot();
+        };
+        if (api) {
+            api.adapter = adapter;
+            api.debugSnapshot = globalRoot.kwinRibbonDebugSnapshot;
+        }
+        env.print("kwin-ribbon loaded " + VERSION);
+        try {
+            adapter.start();
+            adapter.arrange();
+        } catch (error) {
+            env.print("kwin-ribbon startup failed: " + error);
+        }
+        return adapter;
+    }

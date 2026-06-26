@@ -116,11 +116,34 @@
             }
             started = true;
             if (adapterEnv.workspace) {
-                signalConnect(adapterEnv.workspace.windowAdded, handleWindowAdded);
-                signalConnect(adapterEnv.workspace.windowRemoved, handleWindowRemoved);
-                signalConnect(adapterEnv.workspace.windowDeleted, handleWindowRemoved);
-                signalConnect(adapterEnv.workspace.activeWindowChanged, handleActiveWindowChanged);
-                signalConnect(adapterEnv.workspace.clientActivated, handleActiveWindowChanged);
+                signalConnect(adapterEnv.workspace.windowAdded, function (windowRef) {
+                    handleWindowAdded(windowRef);
+                    arrange();
+                });
+                signalConnect(adapterEnv.workspace.windowRemoved, function (windowRef) {
+                    handleWindowRemoved(windowRef);
+                    arrange();
+                });
+                signalConnect(adapterEnv.workspace.windowDeleted, function (windowRef) {
+                    handleWindowRemoved(windowRef);
+                    arrange();
+                });
+                signalConnect(adapterEnv.workspace.activeWindowChanged, function (windowRef) {
+                    handleActiveWindowChanged(windowRef || adapterActiveWindow(adapterEnv));
+                    arrange();
+                });
+                signalConnect(adapterEnv.workspace.clientActivated, function (windowRef) {
+                    handleActiveWindowChanged(windowRef || adapterActiveWindow(adapterEnv));
+                    arrange();
+                });
+                signalConnect(adapterEnv.workspace.currentDesktopChanged, function () {
+                    syncWindows();
+                    arrange();
+                });
+                signalConnect(adapterEnv.workspace.currentVirtualDesktopChanged, function () {
+                    syncWindows();
+                    arrange();
+                });
             }
             registerShortcuts();
             return syncWindows();
