@@ -1049,6 +1049,229 @@
         return column ? moveWindowToIndex(state, outputId, workspaceIndex, column.windows.length - 1) : null;
     }
 
+    function normalizeDirection(direction) {
+        var text = String(direction || "right").toLowerCase();
+        if (direction === -1 || text === "-1" || text === "left" || text === "up") {
+            return -1;
+        }
+        return 1;
+    }
+
+    function takeWindowEntry(column, windowIndex) {
+        var index = clampIndex(windowIndex, column.windows.length);
+        var id;
+        var weight;
+        if (index < 0) {
+            return null;
+        }
+        id = column.windows.splice(index, 1)[0];
+        weight = column.heightWeights[id];
+        delete column.heightWeights[id];
+        if (column.focusWindow > index) {
+            column.focusWindow -= 1;
+        } else if (column.focusWindow >= column.windows.length) {
+            column.focusWindow = column.windows.length - 1;
+        }
+        pruneHeightWeights(column);
+        return { id: id, weight: weight };
+    }
+
+    function insertWindowEntry(column, entry, windowIndex) {
+        var index;
+        if (!entry) {
+            return -1;
+        }
+        index = Math.max(0, Math.min(parseInt(windowIndex, 10) || 0, column.windows.length));
+        column.windows.splice(index, 0, entry.id);
+        if (entry.weight !== undefined) {
+            column.heightWeights[entry.id] = entry.weight;
+        }
+        pruneHeightWeights(column);
+        return index;
+    }
+
+    function removeEmptyColumn(workspace, columnIndex) {
+        if (workspace.columns[columnIndex] && workspace.columns[columnIndex].windows.length === 0) {
+            workspace.columns.splice(columnIndex, 1);
+            return true;
+        }
+        return false;
+    }
+
+    function finishWorkspaceMutation(state, outputId, workspaceIndex, workspace) {
+        rebuildWorkspaceIndex(state, outputId, workspaceIndex, workspace);
+        updateLastTiledWindow(state, workspace);
+        return focusedLocation(state, workspace);
+    }
+
+    function consumeIntoColumn(state, outputId, workspaceIndex, direction) {
+        var offset = normalizeDirection(direction);
+        var ref = focusedColumnRef(state, outputId, workspaceIndex);
+        var neighborIndex;
+        var neighbor;
+        var activeWindow;
+        var entry;
+        var nextFocus;
+
+        if (!ref) {
+            return null;
+        }
+        neighborIndex = ref.columnIndex + offset;
+        if (neighborIndex < 0 || neighborIndex >= ref.workspace.columns.length) {
+            return focusedLocation(state, ref.workspace);
+        }
+        neighbor = ref.workspace.columns[neighborIndex];
+        activeWindow = focusedWindowId(ref.workspace);
+        entry = takeWindowEntry(neighbor, 0);
+        if (!entry) {
+            return focusedLocation(state, ref.workspace);
+        }
+        insertWindowEntry(ref.column, entry, ref.column.windows.length);
+        removeEmptyColumn(ref.workspace, neighborIndex);
+        nextFocus = findColumnIndexById(ref.workspace, ref.column.id);
+        ref.workspace.focusColumn = nextFocus < 0 ? 0 : nextFocus;
+        ref.column.focusWindow = Math.max(0, ref.column.windows.indexOf(activeWindow));
+        return finishWorkspaceMutation(state, ref.outputId, ref.workspaceIndex, ref.workspace);
+    }
+
+    function consumeIntoColumnLeft(state, outputId, workspaceIndex) {
+        return consumeIntoColumn(state, outputId, workspaceIndex, -1);
+    }
+
+    function consumeIntoColumnRight(state, outputId, workspaceIndex) {
+        return consumeIntoColumn(state, outputId, workspaceIndex, 1);
+    }
+
+    function expelFromColumn(state, outputId, workspaceIndex, direction) {
+        var offset = normalizeDirection(direction);
+        var ref = focusedColumnRef(state, outputId, workspaceIndex);
+        var entry;
+        var display;
+        var column;
+        var insertIndex;
+
+        if (!ref) {
+            return null;
+        }
+        if (ref.column.windows.length <= 1) {
+            return focusedLocation(state, ref.workspace);
+        }
+        entry = takeWindowEntry(ref.column, ref.column.focusWindow);
+        display = ref.column.tabbed ? "tabbed" : "normal";
+        column = createColumn(state, entry.id, {
+            width: ref.column.width,
+            widthFixed: ref.column.widthFixed,
+            display: display
+        });
+        insertIndex = offset < 0 ? ref.columnIndex : ref.columnIndex + 1;
+        ref.workspace.columns.splice(insertIndex, 0, column);
+        ref.workspace.focusColumn = insertIndex;
+        ref.workspace.prevColumnOnRemoval = -1;
+        return finishWorkspaceMutation(state, ref.outputId, ref.workspaceIndex, ref.workspace);
+    }
+
+    function expelFromColumnLeft(state, outputId, workspaceIndex) {
+        return expelFromColumn(state, outputId, workspaceIndex, -1);
+    }
+
+    function expelFromColumnRight(state, outputId, workspaceIndex) {
+        return expelFromColumn(state, outputId, workspaceIndex, 1);
+    }
+
+    function consumeOrExpel(state, outputId, workspaceIndex, direction) {
+        var offset = normalizeDirection(direction);
+        var ref = focusedColumnRef(state, outputId, workspaceIndex);
+        var neighborIndex;
+        var neighbor;
+        var entry;
+        var insertIndex;
+        var focusIndex;
+
+        if (!ref) {
+            return null;
+        }
+        if (ref.column.windows.length > 1) {
+            return expelFromColumn(state, outputId, workspaceIndex, offset);
+        }
+        neighborIndex = ref.columnIndex + offset;
+        if (neighborIndex < 0 || neighborIndex >= ref.workspace.columns.length) {
+            return focusedLocation(state, ref.workspace);
+        }
+        neighbor = ref.workspace.columns[neighborIndex];
+        entry = takeWindowEntry(ref.column, ref.column.focusWindow);
+        insertIndex = offset < 0 ? neighbor.windows.length : 0;
+        focusIndex = insertWindowEntry(neighbor, entry, insertIndex);
+        removeEmptyColumn(ref.workspace, ref.columnIndex);
+        neighborIndex = findColumnIndexById(ref.workspace, neighbor.id);
+        ref.workspace.focusColumn = neighborIndex;
+        neighbor.focusWindow = focusIndex;
+        ref.workspace.prevColumnOnRemoval = -1;
+        return finishWorkspaceMutation(state, ref.outputId, ref.workspaceIndex, ref.workspace);
+    }
+
+    function consumeOrExpelLeft(state, outputId, workspaceIndex) {
+        return consumeOrExpel(state, outputId, workspaceIndex, -1);
+    }
+
+    function consumeOrExpelRight(state, outputId, workspaceIndex) {
+        return consumeOrExpel(state, outputId, workspaceIndex, 1);
+    }
+
+    function swapWindow(state, outputId, workspaceIndex, direction) {
+        var offset = normalizeDirection(direction);
+        var ref = focusedColumnRef(state, outputId, workspaceIndex);
+        var neighborIndex;
+        var neighbor;
+        var sourceWindowIndex;
+        var neighborWindowIndex;
+        var sourceId;
+        var neighborId;
+        var sourceWeight;
+        var neighborWeight;
+
+        if (!ref) {
+            return null;
+        }
+        neighborIndex = ref.columnIndex + offset;
+        if (neighborIndex < 0 || neighborIndex >= ref.workspace.columns.length) {
+            return focusedLocation(state, ref.workspace);
+        }
+        neighbor = ref.workspace.columns[neighborIndex];
+        if (ref.column.windows.length === 1 && neighbor.windows.length === 1) {
+            return moveColumnToIndex(state, outputId, workspaceIndex, neighborIndex);
+        }
+        sourceWindowIndex = clampIndex(ref.column.focusWindow, ref.column.windows.length);
+        neighborWindowIndex = clampIndex(neighbor.focusWindow, neighbor.windows.length);
+        sourceId = ref.column.windows[sourceWindowIndex];
+        neighborId = neighbor.windows[neighborWindowIndex];
+        sourceWeight = ref.column.heightWeights[sourceId];
+        neighborWeight = neighbor.heightWeights[neighborId];
+        ref.column.windows[sourceWindowIndex] = neighborId;
+        neighbor.windows[neighborWindowIndex] = sourceId;
+        delete ref.column.heightWeights[sourceId];
+        delete neighbor.heightWeights[neighborId];
+        if (neighborWeight !== undefined) {
+            ref.column.heightWeights[neighborId] = neighborWeight;
+        }
+        if (sourceWeight !== undefined) {
+            neighbor.heightWeights[sourceId] = sourceWeight;
+        }
+        pruneHeightWeights(ref.column);
+        pruneHeightWeights(neighbor);
+        ref.column.focusWindow = sourceWindowIndex;
+        neighbor.focusWindow = neighborWindowIndex;
+        ref.workspace.focusColumn = neighborIndex;
+        return finishWorkspaceMutation(state, ref.outputId, ref.workspaceIndex, ref.workspace);
+    }
+
+    function swapWindowLeft(state, outputId, workspaceIndex) {
+        return swapWindow(state, outputId, workspaceIndex, -1);
+    }
+
+    function swapWindowRight(state, outputId, workspaceIndex) {
+        return swapWindow(state, outputId, workspaceIndex, 1);
+    }
+
     function createState(options) {
         return {
             options: copyOptions(options),
@@ -1116,7 +1339,18 @@
             moveWindowUp: moveWindowUp,
             moveWindowDown: moveWindowDown,
             moveWindowTop: moveWindowTop,
-            moveWindowBottom: moveWindowBottom
+            moveWindowBottom: moveWindowBottom,
+            consumeIntoColumn: consumeIntoColumn,
+            consumeIntoColumnLeft: consumeIntoColumnLeft,
+            consumeIntoColumnRight: consumeIntoColumnRight,
+            expelFromColumn: expelFromColumn,
+            expelFromColumnLeft: expelFromColumnLeft,
+            expelFromColumnRight: expelFromColumnRight,
+            consumeOrExpel: consumeOrExpel,
+            consumeOrExpelLeft: consumeOrExpelLeft,
+            consumeOrExpelRight: consumeOrExpelRight,
+            swapWindowLeft: swapWindowLeft,
+            swapWindowRight: swapWindowRight
         };
     }
 

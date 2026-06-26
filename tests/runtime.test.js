@@ -476,3 +476,150 @@ api.removeWindow(heightPark, "c");
 api.removeWindow(heightPark, "b");
 assert.deepEqual(plain(heightParkColumn.windows), ["a"]);
 assert.deepEqual(plain(heightParkColumn.heightWeights), {});
+
+const consumeState = api.createState();
+const consumeWorkspace = api.ensureWorkspace(consumeState, "screen-1", 0);
+const consumeLeft = api.createColumn(consumeState, ["a"]);
+const consumeRight = api.createColumn(consumeState, ["b1", "b2"]);
+consumeRight.heightWeights = { b1: 0.25, b2: 0.75 };
+consumeWorkspace.columns.push(consumeLeft, consumeRight);
+consumeState.windowIndex.a = api.createLocation("screen-1", 0, 0, 0);
+consumeState.windowIndex.b1 = api.createLocation("screen-1", 0, 1, 0);
+consumeState.windowIndex.b2 = api.createLocation("screen-1", 0, 1, 1);
+
+assert.deepEqual(plain(api.consumeIntoColumnRight(consumeState, "screen-1", 0)), {
+  outputId: "screen-1",
+  workspaceIndex: 0,
+  columnIndex: 0,
+  windowIndex: 0
+});
+assert.deepEqual(plain(consumeWorkspace.columns.map((column) => column.windows)), [
+  ["a", "b1"],
+  ["b2"]
+]);
+assert.deepEqual(plain(consumeWorkspace.columns[0].heightWeights), { b1: 0.25 });
+assert.deepEqual(plain(consumeWorkspace.columns[1].heightWeights), {});
+assert.equal(consumeState.lastTiledWindowId, "a");
+assert.deepEqual(plain(consumeState.windowIndex.b1), {
+  outputId: "screen-1",
+  workspaceIndex: 0,
+  columnIndex: 0,
+  windowIndex: 1
+});
+
+const mergeState = api.createState();
+api.addWindow(mergeState, "screen-1", 0, "left");
+api.addWindow(mergeState, "screen-1", 0, "right");
+api.focusFirstColumn(mergeState, "screen-1", 0);
+const mergeWorkspace = api.getWorkspace(mergeState, "screen-1", 0);
+
+assert.deepEqual(plain(api.consumeOrExpelRight(mergeState, "screen-1", 0)), {
+  outputId: "screen-1",
+  workspaceIndex: 0,
+  columnIndex: 0,
+  windowIndex: 0
+});
+assert.deepEqual(plain(mergeWorkspace.columns.map((column) => column.windows)), [["left", "right"]]);
+assert.equal(mergeWorkspace.focusColumn, 0);
+assert.equal(mergeWorkspace.columns[0].focusWindow, 0);
+
+const expelState = api.createState();
+const expelWorkspace = api.ensureWorkspace(expelState, "screen-1", 0);
+const expelLeft = api.createColumn(expelState, ["l"]);
+const expelActive = api.createColumn(expelState, ["x", "y", "z"]);
+expelActive.heightWeights = { x: 0.25, y: 0.5, z: 0.75 };
+expelWorkspace.columns.push(expelLeft, expelActive);
+expelWorkspace.focusColumn = 1;
+expelActive.focusWindow = 1;
+expelState.windowIndex.l = api.createLocation("screen-1", 0, 0, 0);
+expelState.windowIndex.x = api.createLocation("screen-1", 0, 1, 0);
+expelState.windowIndex.y = api.createLocation("screen-1", 0, 1, 1);
+expelState.windowIndex.z = api.createLocation("screen-1", 0, 1, 2);
+
+assert.deepEqual(plain(api.consumeOrExpelLeft(expelState, "screen-1", 0)), {
+  outputId: "screen-1",
+  workspaceIndex: 0,
+  columnIndex: 1,
+  windowIndex: 0
+});
+assert.deepEqual(plain(expelWorkspace.columns.map((column) => column.windows)), [
+  ["l"],
+  ["y"],
+  ["x", "z"]
+]);
+assert.equal(expelWorkspace.focusColumn, 1);
+assert.deepEqual(plain(expelWorkspace.columns[2].heightWeights), { x: 0.25, z: 0.75 });
+assert.deepEqual(plain(expelState.windowIndex.y), {
+  outputId: "screen-1",
+  workspaceIndex: 0,
+  columnIndex: 1,
+  windowIndex: 0
+});
+
+assert.deepEqual(plain(api.expelFromColumnRight(expelState, "screen-1", 0)), {
+  outputId: "screen-1",
+  workspaceIndex: 0,
+  columnIndex: 1,
+  windowIndex: 0
+});
+assert.deepEqual(plain(expelWorkspace.columns.map((column) => column.windows)), [
+  ["l"],
+  ["y"],
+  ["x", "z"]
+]);
+
+const swapState = api.createState();
+const swapWorkspace = api.ensureWorkspace(swapState, "screen-1", 0);
+const swapLeft = api.createColumn(swapState, ["a1", "a2"]);
+const swapRight = api.createColumn(swapState, ["b1", "b2"]);
+swapLeft.focusWindow = 1;
+swapRight.focusWindow = 0;
+swapLeft.heightWeights = { a2: 0.5 };
+swapRight.heightWeights = { b1: 0.25 };
+swapWorkspace.columns.push(swapLeft, swapRight);
+swapState.windowIndex.a1 = api.createLocation("screen-1", 0, 0, 0);
+swapState.windowIndex.a2 = api.createLocation("screen-1", 0, 0, 1);
+swapState.windowIndex.b1 = api.createLocation("screen-1", 0, 1, 0);
+swapState.windowIndex.b2 = api.createLocation("screen-1", 0, 1, 1);
+
+assert.deepEqual(plain(api.swapWindowRight(swapState, "screen-1", 0)), {
+  outputId: "screen-1",
+  workspaceIndex: 0,
+  columnIndex: 1,
+  windowIndex: 0
+});
+assert.deepEqual(plain(swapWorkspace.columns.map((column) => column.windows)), [
+  ["a1", "b1"],
+  ["a2", "b2"]
+]);
+assert.deepEqual(plain(swapLeft.heightWeights), { b1: 0.25 });
+assert.deepEqual(plain(swapRight.heightWeights), { a2: 0.5 });
+assert.equal(swapState.lastTiledWindowId, "a2");
+
+const swapColumnState = api.createState();
+api.addWindow(swapColumnState, "screen-1", 0, "one");
+api.addWindow(swapColumnState, "screen-1", 0, "two");
+const swapColumnWorkspace = api.getWorkspace(swapColumnState, "screen-1", 0);
+
+assert.deepEqual(plain(api.swapWindowLeft(swapColumnState, "screen-1", 0)), {
+  outputId: "screen-1",
+  workspaceIndex: 0,
+  columnIndex: 0,
+  windowIndex: 0
+});
+assert.deepEqual(plain(swapColumnWorkspace.columns.map((column) => column.windows)), [
+  ["two"],
+  ["one"]
+]);
+assert.equal(swapColumnWorkspace.focusColumn, 0);
+
+assert.deepEqual(plain(api.swapWindowLeft(swapColumnState, "screen-1", 0)), {
+  outputId: "screen-1",
+  workspaceIndex: 0,
+  columnIndex: 0,
+  windowIndex: 0
+});
+assert.deepEqual(plain(swapColumnWorkspace.columns.map((column) => column.windows)), [
+  ["two"],
+  ["one"]
+]);
