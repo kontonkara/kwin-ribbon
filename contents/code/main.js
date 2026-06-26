@@ -44,6 +44,14 @@
         return Math.max(0.1, Math.min(1.5, number));
     }
 
+    function clampFixedWidth(value) {
+        var number = parseFloat(value);
+        if (!isFinite(number) || number <= 0) {
+            return 1;
+        }
+        return Math.max(1, number);
+    }
+
     function normalizePresetRatios(value) {
         var raw = value;
         var result = [];
@@ -510,6 +518,171 @@
         return id ? state.windowIndex[id] || null : null;
     }
 
+    function workspaceRef(state, outputId, workspaceIndex) {
+        var output = ensureOutput(state, outputId);
+        var index = workspaceIndex;
+        if (index === undefined || index === null) {
+            index = output.currentWorkspaceIndex;
+        }
+        index = normalizeWorkspaceIndex(index);
+        return {
+            outputId: output.id,
+            workspaceIndex: index,
+            workspace: ensureWorkspace(state, output.id, index)
+        };
+    }
+
+    function focusedColumnRef(state, outputId, workspaceIndex) {
+        var ref = workspaceRef(state, outputId, workspaceIndex);
+        var index;
+
+        if (ref.workspace.columns.length === 0) {
+            return null;
+        }
+        index = clampIndex(ref.workspace.focusColumn, ref.workspace.columns.length);
+        ref.workspace.focusColumn = index;
+        return {
+            outputId: ref.outputId,
+            workspaceIndex: ref.workspaceIndex,
+            workspace: ref.workspace,
+            columnIndex: index,
+            column: ref.workspace.columns[index]
+        };
+    }
+
+    function sameNumber(a, b) {
+        return Math.abs(parseFloat(a) - parseFloat(b)) < 0.000001;
+    }
+
+    function presetIndexForWidth(state, width, fixed) {
+        var presets = state.options.presetColumnWidths;
+        var i;
+        if (fixed) {
+            return -1;
+        }
+        for (i = 0; i < presets.length; i += 1) {
+            if (sameNumber(width, presets[i])) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    function applyColumnWidth(state, column, width, fixed) {
+        var widthFixed = fixed === true;
+        column.width = widthFixed ? clampFixedWidth(width) : clampRatio(width);
+        column.widthFixed = widthFixed;
+        column.fullWidth = false;
+        column.restoreWidth = null;
+        column.restoreWidthFixed = null;
+        column.presetWidthIndex = presetIndexForWidth(state, column.width, column.widthFixed);
+        return column;
+    }
+
+    function choosePresetIndex(state, column, direction) {
+        var presets = state.options.presetColumnWidths;
+        var current = parseInt(column.presetWidthIndex, 10);
+        var i;
+
+        if (presets.length === 0) {
+            return -1;
+        }
+        if (!isFinite(direction) || direction === 0) {
+            direction = 1;
+        }
+        direction = direction < 0 ? -1 : 1;
+        if (current >= 0 && current < presets.length) {
+            return (current + direction + presets.length) % presets.length;
+        }
+        if (direction > 0) {
+            for (i = 0; i < presets.length; i += 1) {
+                if (column.widthFixed || presets[i] > column.width) {
+                    return i;
+                }
+            }
+            return 0;
+        }
+        for (i = presets.length - 1; i >= 0; i -= 1) {
+            if (column.widthFixed || presets[i] < column.width) {
+                return i;
+            }
+        }
+        return presets.length - 1;
+    }
+
+    function setColumnWidth(state, outputId, workspaceIndex, width) {
+        var ref = focusedColumnRef(state, outputId, workspaceIndex);
+        return ref ? applyColumnWidth(state, ref.column, width, false) : null;
+    }
+
+    function adjustColumnWidth(state, outputId, workspaceIndex, delta) {
+        var ref = focusedColumnRef(state, outputId, workspaceIndex);
+        var base;
+        if (!ref) {
+            return null;
+        }
+        base = ref.column.widthFixed ? state.options.defaultColumnWidth : ref.column.width;
+        return applyColumnWidth(state, ref.column, base + (parseFloat(delta) || 0), false);
+    }
+
+    function setColumnFixedWidth(state, outputId, workspaceIndex, width) {
+        var ref = focusedColumnRef(state, outputId, workspaceIndex);
+        return ref ? applyColumnWidth(state, ref.column, width, true) : null;
+    }
+
+    function adjustColumnFixedWidth(state, outputId, workspaceIndex, delta) {
+        var ref = focusedColumnRef(state, outputId, workspaceIndex);
+        var base;
+        if (!ref) {
+            return null;
+        }
+        base = ref.column.widthFixed ? ref.column.width : 1;
+        return applyColumnWidth(state, ref.column, base + (parseFloat(delta) || 0), true);
+    }
+
+    function switchPresetColumnWidth(state, outputId, workspaceIndex, direction) {
+        var ref = focusedColumnRef(state, outputId, workspaceIndex);
+        var index;
+        if (!ref) {
+            return null;
+        }
+        index = choosePresetIndex(state, ref.column, parseInt(direction, 10));
+        if (index < 0) {
+            return ref.column;
+        }
+        applyColumnWidth(state, ref.column, state.options.presetColumnWidths[index], false);
+        ref.column.presetWidthIndex = index;
+        return ref.column;
+    }
+
+    function switchPresetColumnWidthBack(state, outputId, workspaceIndex) {
+        return switchPresetColumnWidth(state, outputId, workspaceIndex, -1);
+    }
+
+    function toggleColumnFullWidth(state, outputId, workspaceIndex) {
+        var ref = focusedColumnRef(state, outputId, workspaceIndex);
+        var column;
+        if (!ref) {
+            return null;
+        }
+        column = ref.column;
+        if (column.fullWidth) {
+            column.fullWidth = false;
+            if (column.restoreWidth !== null && column.restoreWidth !== undefined) {
+                column.width = column.restoreWidthFixed ? clampFixedWidth(column.restoreWidth) : clampRatio(column.restoreWidth);
+                column.widthFixed = column.restoreWidthFixed === true;
+            }
+            column.restoreWidth = null;
+            column.restoreWidthFixed = null;
+            column.presetWidthIndex = presetIndexForWidth(state, column.width, column.widthFixed);
+            return column;
+        }
+        column.restoreWidth = column.width;
+        column.restoreWidthFixed = column.widthFixed;
+        column.fullWidth = true;
+        return column;
+    }
+
     function focusColumnAt(state, outputId, workspaceIndex, targetIndex) {
         var workspace = getWorkspace(state, outputId, workspaceIndex);
         var previousFocus;
@@ -738,6 +911,13 @@
             removeWindow: removeWindow,
             parkWindow: parkWindow,
             restoreWindow: restoreWindow,
+            setColumnWidth: setColumnWidth,
+            adjustColumnWidth: adjustColumnWidth,
+            setColumnFixedWidth: setColumnFixedWidth,
+            adjustColumnFixedWidth: adjustColumnFixedWidth,
+            switchPresetColumnWidth: switchPresetColumnWidth,
+            switchPresetColumnWidthBack: switchPresetColumnWidthBack,
+            toggleColumnFullWidth: toggleColumnFullWidth,
             focusColumnLeft: focusColumnLeft,
             focusColumnRight: focusColumnRight,
             focusFirstColumn: focusFirstColumn,

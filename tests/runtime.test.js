@@ -331,3 +331,79 @@ assert.equal(stackColumn.focusWindow, 0);
 api.moveWindowUp(stack, "screen-1", 0);
 assert.deepEqual(plain(stackColumn.windows), ["middle", "top", "bottom"]);
 assert.equal(stackColumn.focusWindow, 0);
+
+const emptyWidth = api.createState();
+assert.equal(api.setColumnWidth(emptyWidth, "screen-1", 0, 0.5), null);
+
+const widthState = api.createState({
+  defaultColumnWidth: 0.4,
+  presetColumnWidths: [0.25, 0.5, 0.75]
+});
+api.addWindow(widthState, "screen-1", 0, "wide");
+
+const widthWorkspace = api.getWorkspace(widthState, "screen-1", 0);
+const widthColumn = widthWorkspace.columns[0];
+
+assert.equal(widthColumn.width, 0.4);
+assert.equal(widthColumn.presetWidthIndex, -1);
+
+api.setColumnWidth(widthState, "screen-1", 0, 0.5);
+assert.equal(widthColumn.width, 0.5);
+assert.equal(widthColumn.widthFixed, false);
+assert.equal(widthColumn.presetWidthIndex, 1);
+
+api.switchPresetColumnWidth(widthState, "screen-1", 0, 1);
+assert.equal(widthColumn.width, 0.75);
+assert.equal(widthColumn.presetWidthIndex, 2);
+api.switchPresetColumnWidth(widthState, "screen-1", 0, 1);
+assert.equal(widthColumn.width, 0.25);
+assert.equal(widthColumn.presetWidthIndex, 0);
+api.switchPresetColumnWidthBack(widthState, "screen-1", 0);
+assert.equal(widthColumn.width, 0.75);
+assert.equal(widthColumn.presetWidthIndex, 2);
+
+api.adjustColumnWidth(widthState, "screen-1", 0, -0.15);
+assert.equal(widthColumn.width, 0.6);
+assert.equal(widthColumn.widthFixed, false);
+assert.equal(widthColumn.presetWidthIndex, -1);
+api.switchPresetColumnWidth(widthState, "screen-1", 0, 1);
+assert.equal(widthColumn.width, 0.75);
+assert.equal(widthColumn.presetWidthIndex, 2);
+
+api.setColumnFixedWidth(widthState, "screen-1", 0, 720);
+assert.equal(widthColumn.width, 720);
+assert.equal(widthColumn.widthFixed, true);
+assert.equal(widthColumn.presetWidthIndex, -1);
+api.adjustColumnFixedWidth(widthState, "screen-1", 0, -800);
+assert.equal(widthColumn.width, 1);
+assert.equal(widthColumn.widthFixed, true);
+
+api.toggleColumnFullWidth(widthState, "screen-1", 0);
+assert.equal(widthColumn.fullWidth, true);
+assert.equal(widthColumn.restoreWidth, 1);
+assert.equal(widthColumn.restoreWidthFixed, true);
+api.toggleColumnFullWidth(widthState, "screen-1", 0);
+assert.equal(widthColumn.fullWidth, false);
+assert.equal(widthColumn.width, 1);
+assert.equal(widthColumn.widthFixed, true);
+assert.equal(widthColumn.restoreWidth, null);
+assert.equal(widthColumn.restoreWidthFixed, null);
+
+api.toggleColumnFullWidth(widthState, "screen-1", 0);
+api.setColumnWidth(widthState, "screen-1", 0, 0.5);
+assert.equal(widthColumn.fullWidth, false);
+assert.equal(widthColumn.restoreWidth, null);
+assert.equal(widthColumn.restoreWidthFixed, null);
+assert.equal(widthColumn.widthFixed, false);
+assert.equal(widthColumn.presetWidthIndex, 1);
+
+api.setColumnFixedWidth(widthState, "screen-1", 0, 640);
+api.toggleColumnFullWidth(widthState, "screen-1", 0);
+api.parkWindow(widthState, "wide", "hidden");
+assert.equal(widthWorkspace.columns.length, 0);
+api.restoreWindow(widthState, "wide");
+assert.equal(widthWorkspace.columns[0].width, 640);
+assert.equal(widthWorkspace.columns[0].widthFixed, true);
+assert.equal(widthWorkspace.columns[0].fullWidth, true);
+assert.equal(widthWorkspace.columns[0].restoreWidth, 640);
+assert.equal(widthWorkspace.columns[0].restoreWidthFixed, true);
