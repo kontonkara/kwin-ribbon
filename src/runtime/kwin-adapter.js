@@ -193,7 +193,7 @@
             var columnEntry;
             var windowId;
             var entry;
-            if (!location || typeof adapterEnv.activateWindow !== "function") {
+            if (!location || typeof adapterEnv.activateWindow !== "function" || location.columnIndex === undefined || location.windowIndex === undefined) {
                 return;
             }
             columnEntry = getWorkspace(state, location.outputId, location.workspaceIndex).columns[location.columnIndex];
@@ -210,7 +210,7 @@
         function dispatchAction(actionName, scope) {
             var targetScope = defaultArrangeScope(scope);
             var location = dispatchRibbonAction(state, actionName, targetScope);
-            if (location) {
+            if (location !== null && location !== undefined) {
                 arrange(targetScope);
                 activateLocation(location);
             }

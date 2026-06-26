@@ -120,6 +120,12 @@ registered.find((entry) => entry.name === "kwin-ribbon-focus-column-left").callb
 assert.equal(actionAdapter.state.lastTiledWindowId, "action-1");
 assert.deepEqual(activated, ["action-1"]);
 assert.equal(actionFirst.frameGeometry.width, 100);
+assert.equal(registered.some((entry) => entry.name === "kwin-ribbon-maximize-column"), true);
+
+actionAdapter.dispatchAction("kwin-ribbon-maximize-column", { outputId: "screen-1", workspaceIndex: 0, area: { x: 0, y: 0, width: 100, height: 100 } });
+assert.equal(api.getWorkspace(actionAdapter.state, "screen-1", 0).columns[0].fullWidth, true);
+actionAdapter.dispatchAction("kwin-ribbon-center-column", { outputId: "screen-1", workspaceIndex: 0, area: { x: 0, y: 0, width: 100, height: 100 } });
+assert.equal(actionAdapter.lastProjection().frames.length, 2);
 
 const disabledAdapter = api.createKWinAdapter({ registerShortcut: () => registered.push("disabled") }, { enableWindowManagementShortcuts: false });
 assert.equal(disabledAdapter.registerShortcuts(), false);
