@@ -123,3 +123,27 @@ assert.equal(actionFirst.frameGeometry.width, 100);
 
 const disabledAdapter = api.createKWinAdapter({ registerShortcut: () => registered.push("disabled") }, { enableWindowManagementShortcuts: false });
 assert.equal(disabledAdapter.registerShortcuts(), false);
+
+const snapshotWindow = { internalId: "snap", output: "screen-1", caption: "not included" };
+const snapshotAdapter = api.createKWinAdapter({
+  getArrangeArea: () => ({ x: 0, y: 0, width: 100, height: 100 })
+});
+
+snapshotAdapter.handleWindowAdded(snapshotWindow);
+snapshotAdapter.arrange({ outputId: "screen-1", workspaceIndex: 0 });
+const snapshot = snapshotAdapter.debugSnapshot();
+assert.equal(snapshot.version, "0.1.0");
+assert.equal(snapshot.knownWindows.length, 1);
+assert.deepEqual(plain(snapshot.knownWindows[0]), {
+  windowId: "snap",
+  outputId: "screen-1",
+  workspaceIndex: 0,
+  action: "tile",
+  reason: "normal",
+  manageable: true,
+  fullscreen: false
+});
+assert.equal(snapshot.knownWindows[0].windowRef, undefined);
+assert.equal(snapshot.knownWindows[0].caption, undefined);
+assert.equal(snapshot.state.windowIndex.snap.columnIndex, 0);
+assert.equal(snapshot.lastProjection.frames[0].windowId, "snap");

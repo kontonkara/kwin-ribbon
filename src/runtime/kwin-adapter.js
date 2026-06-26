@@ -214,6 +214,41 @@
             return true;
         }
 
+        function plainData(value) {
+            return JSON.parse(JSON.stringify(value));
+        }
+
+        function knownWindowSnapshots() {
+            var result = [];
+            var id;
+            var info;
+            for (id in registry) {
+                if (hasOwn(registry, id)) {
+                    info = registry[id].classification;
+                    result.push({
+                        windowId: info.windowId,
+                        outputId: info.outputId,
+                        workspaceIndex: info.workspaceIndex,
+                        action: info.action,
+                        reason: info.reason,
+                        manageable: info.manageable,
+                        fullscreen: info.fullscreen
+                    });
+                }
+            }
+            return result;
+        }
+
+        function debugSnapshot() {
+            return {
+                version: VERSION,
+                options: plainData(options),
+                state: plainData(state),
+                knownWindows: knownWindowSnapshots(),
+                lastProjection: lastProjection ? plainData(lastProjection) : null
+            };
+        }
+
         return {
             state: state,
             registry: registry,
@@ -226,6 +261,7 @@
             arrange: arrange,
             dispatchAction: dispatchAction,
             registerShortcuts: registerShortcuts,
+            debugSnapshot: debugSnapshot,
             lastProjection: function () {
                 return lastProjection;
             }
