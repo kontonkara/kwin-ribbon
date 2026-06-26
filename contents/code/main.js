@@ -52,6 +52,14 @@
         return Math.max(1, number);
     }
 
+    function clampHeightWeight(value) {
+        var number = parseFloat(value);
+        if (!isFinite(number) || number <= 0) {
+            return 1;
+        }
+        return Math.max(0.01, Math.min(100, number));
+    }
+
     function normalizePresetRatios(value) {
         var raw = value;
         var result = [];
@@ -293,6 +301,30 @@
         }
     }
 
+    function pruneHeightWeights(column) {
+        var keep = {};
+        var next = {};
+        var i;
+        var id;
+
+        if (!column || !column.heightWeights) {
+            return;
+        }
+        if (column.windows.length <= 1) {
+            column.heightWeights = {};
+            return;
+        }
+        for (i = 0; i < column.windows.length; i += 1) {
+            keep[column.windows[i]] = true;
+        }
+        for (id in column.heightWeights) {
+            if (hasOwn(column.heightWeights, id) && keep[id]) {
+                next[id] = column.heightWeights[id];
+            }
+        }
+        column.heightWeights = next;
+    }
+
     function removeFromStateBags(state, windowId) {
         delete state.floating[windowId];
         delete state.manualFloating[windowId];
@@ -339,6 +371,8 @@
 
         removedFocusedColumn = workspace.focusColumn === location.columnIndex;
         column.windows.splice(location.windowIndex, 1);
+        delete column.heightWeights[id];
+        pruneHeightWeights(column);
         delete state.windowIndex[id];
 
         if (column.windows.length === 0) {
@@ -482,6 +516,11 @@
             insertIndex = Math.max(0, Math.min(placement.windowIndex, column.windows.length));
             column.windows.splice(insertIndex, 0, id);
             column.focusWindow = insertIndex;
+            weight = placement.column.heightWeights[id];
+            if (weight !== undefined) {
+                column.heightWeights[id] = weight;
+            }
+            pruneHeightWeights(column);
         } else {
             column = cloneColumn(placement.column);
             weight = column.heightWeights[id];
@@ -547,6 +586,28 @@
             workspace: ref.workspace,
             columnIndex: index,
             column: ref.workspace.columns[index]
+        };
+    }
+
+    function focusedWindowRef(state, outputId, workspaceIndex) {
+        var ref = focusedColumnRef(state, outputId, workspaceIndex);
+        var index;
+        var windowId;
+
+        if (!ref || ref.column.windows.length === 0) {
+            return null;
+        }
+        index = clampIndex(ref.column.focusWindow, ref.column.windows.length);
+        ref.column.focusWindow = index;
+        windowId = ref.column.windows[index];
+        return {
+            outputId: ref.outputId,
+            workspaceIndex: ref.workspaceIndex,
+            workspace: ref.workspace,
+            columnIndex: ref.columnIndex,
+            column: ref.column,
+            windowIndex: index,
+            windowId: windowId
         };
     }
 
@@ -681,6 +742,119 @@
         column.restoreWidthFixed = column.widthFixed;
         column.fullWidth = true;
         return column;
+    }
+
+    function presetIndexForHeight(state, height) {
+        var presets = state.options.presetWindowHeights;
+        var i;
+        for (i = 0; i < presets.length; i += 1) {
+            if (sameNumber(height, presets[i])) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    function chooseHeightPresetIndex(state, column, windowId, direction) {
+        var presets = state.options.presetWindowHeights;
+        var currentHeight = column.heightWeights[windowId] || 1;
+        var current = presetIndexForHeight(state, currentHeight);
+        var i;
+
+        if (presets.length === 0) {
+            return -1;
+        }
+        if (!isFinite(direction) || direction === 0) {
+            direction = 1;
+        }
+        direction = direction < 0 ? -1 : 1;
+        if (current >= 0) {
+            return (current + direction + presets.length) % presets.length;
+        }
+        if (direction > 0) {
+            for (i = 0; i < presets.length; i += 1) {
+                if (presets[i] > currentHeight) {
+                    return i;
+                }
+            }
+            return 0;
+        }
+        for (i = presets.length - 1; i >= 0; i -= 1) {
+            if (presets[i] < currentHeight) {
+                return i;
+            }
+        }
+        return presets.length - 1;
+    }
+
+    function setWindowHeight(state, outputId, workspaceIndex, height) {
+        var ref = focusedWindowRef(state, outputId, workspaceIndex);
+        if (!ref) {
+            return null;
+        }
+        if (ref.column.windows.length <= 1) {
+            ref.column.heightWeights = {};
+            return focusedLocation(state, ref.workspace);
+        }
+        ref.column.heightWeights[ref.windowId] = clampHeightWeight(height);
+        pruneHeightWeights(ref.column);
+        return focusedLocation(state, ref.workspace);
+    }
+
+    function adjustWindowHeight(state, outputId, workspaceIndex, delta) {
+        var ref = focusedWindowRef(state, outputId, workspaceIndex);
+        var base;
+        if (!ref) {
+            return null;
+        }
+        base = ref.column.heightWeights[ref.windowId] || 1;
+        return setWindowHeight(state, outputId, workspaceIndex, base + (parseFloat(delta) || 0));
+    }
+
+    function switchPresetWindowHeight(state, outputId, workspaceIndex, direction) {
+        var ref = focusedWindowRef(state, outputId, workspaceIndex);
+        var index;
+        if (!ref) {
+            return null;
+        }
+        if (ref.column.windows.length <= 1) {
+            ref.column.heightWeights = {};
+            return focusedLocation(state, ref.workspace);
+        }
+        index = chooseHeightPresetIndex(state, ref.column, ref.windowId, parseInt(direction, 10));
+        if (index < 0) {
+            return focusedLocation(state, ref.workspace);
+        }
+        ref.column.heightWeights[ref.windowId] = state.options.presetWindowHeights[index];
+        pruneHeightWeights(ref.column);
+        return focusedLocation(state, ref.workspace);
+    }
+
+    function switchPresetWindowHeightBack(state, outputId, workspaceIndex) {
+        return switchPresetWindowHeight(state, outputId, workspaceIndex, -1);
+    }
+
+    function resetWindowHeight(state, outputId, workspaceIndex) {
+        var ref = focusedWindowRef(state, outputId, workspaceIndex);
+        if (!ref) {
+            return null;
+        }
+        if (ref.column.tabbed) {
+            ref.column.heightWeights = {};
+        } else {
+            delete ref.column.heightWeights[ref.windowId];
+            pruneHeightWeights(ref.column);
+        }
+        return focusedLocation(state, ref.workspace);
+    }
+
+    function resetColumnHeights(state, outputId, workspaceIndex) {
+        var ref = focusedColumnRef(state, outputId, workspaceIndex);
+        if (!ref) {
+            return null;
+        }
+        ref.column.heightWeights = {};
+        return focusedLocation(state, ref.workspace);
     }
 
     function focusColumnAt(state, outputId, workspaceIndex, targetIndex) {
@@ -918,6 +1092,12 @@
             switchPresetColumnWidth: switchPresetColumnWidth,
             switchPresetColumnWidthBack: switchPresetColumnWidthBack,
             toggleColumnFullWidth: toggleColumnFullWidth,
+            setWindowHeight: setWindowHeight,
+            adjustWindowHeight: adjustWindowHeight,
+            switchPresetWindowHeight: switchPresetWindowHeight,
+            switchPresetWindowHeightBack: switchPresetWindowHeightBack,
+            resetWindowHeight: resetWindowHeight,
+            resetColumnHeights: resetColumnHeights,
             focusColumnLeft: focusColumnLeft,
             focusColumnRight: focusColumnRight,
             focusFirstColumn: focusFirstColumn,

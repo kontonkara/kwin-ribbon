@@ -407,3 +407,72 @@ assert.equal(widthWorkspace.columns[0].widthFixed, true);
 assert.equal(widthWorkspace.columns[0].fullWidth, true);
 assert.equal(widthWorkspace.columns[0].restoreWidth, 640);
 assert.equal(widthWorkspace.columns[0].restoreWidthFixed, true);
+
+const emptyHeight = api.createState();
+assert.equal(api.setWindowHeight(emptyHeight, "screen-1", 0, 0.5), null);
+
+const heightSingle = api.createState();
+api.addWindow(heightSingle, "screen-1", 0, "solo");
+api.setWindowHeight(heightSingle, "screen-1", 0, 0.5);
+assert.deepEqual(plain(api.getWorkspace(heightSingle, "screen-1", 0).columns[0].heightWeights), {});
+
+const heightState = api.createState({ presetWindowHeights: [0.25, 0.5, 0.75] });
+const heightWorkspace = api.ensureWorkspace(heightState, "screen-1", 0);
+const heightColumn = api.createColumn(heightState, ["top", "middle", "bottom"]);
+heightWorkspace.columns.push(heightColumn);
+heightState.windowIndex.top = api.createLocation("screen-1", 0, 0, 0);
+heightState.windowIndex.middle = api.createLocation("screen-1", 0, 0, 1);
+heightState.windowIndex.bottom = api.createLocation("screen-1", 0, 0, 2);
+
+api.focusWindowByIndex(heightState, "screen-1", 0, 2);
+api.setWindowHeight(heightState, "screen-1", 0, 0.5);
+assert.deepEqual(plain(heightColumn.heightWeights), { middle: 0.5 });
+api.switchPresetWindowHeight(heightState, "screen-1", 0, 1);
+assert.deepEqual(plain(heightColumn.heightWeights), { middle: 0.75 });
+api.switchPresetWindowHeight(heightState, "screen-1", 0, 1);
+assert.deepEqual(plain(heightColumn.heightWeights), { middle: 0.25 });
+api.switchPresetWindowHeightBack(heightState, "screen-1", 0);
+assert.deepEqual(plain(heightColumn.heightWeights), { middle: 0.75 });
+api.adjustWindowHeight(heightState, "screen-1", 0, -0.15);
+assert.deepEqual(plain(heightColumn.heightWeights), { middle: 0.6 });
+
+api.focusWindowByIndex(heightState, "screen-1", 0, 1);
+api.setWindowHeight(heightState, "screen-1", 0, 0.25);
+api.focusWindowByIndex(heightState, "screen-1", 0, 2);
+api.resetWindowHeight(heightState, "screen-1", 0);
+assert.deepEqual(plain(heightColumn.heightWeights), { top: 0.25 });
+
+heightColumn.tabbed = true;
+api.focusWindowByIndex(heightState, "screen-1", 0, 1);
+api.setWindowHeight(heightState, "screen-1", 0, 0.75);
+api.resetWindowHeight(heightState, "screen-1", 0);
+assert.deepEqual(plain(heightColumn.heightWeights), {});
+heightColumn.tabbed = false;
+
+api.setWindowHeight(heightState, "screen-1", 0, 0.25);
+api.focusWindowByIndex(heightState, "screen-1", 0, 3);
+api.setWindowHeight(heightState, "screen-1", 0, 0.75);
+api.resetColumnHeights(heightState, "screen-1", 0);
+assert.deepEqual(plain(heightColumn.heightWeights), {});
+
+const heightPark = api.createState();
+const heightParkWorkspace = api.ensureWorkspace(heightPark, "screen-1", 0);
+const heightParkColumn = api.createColumn(heightPark, ["a", "b", "c"]);
+heightParkColumn.heightWeights = { a: 0.25, b: 0.5, c: 0.75 };
+heightParkWorkspace.columns.push(heightParkColumn);
+heightPark.windowIndex.a = api.createLocation("screen-1", 0, 0, 0);
+heightPark.windowIndex.b = api.createLocation("screen-1", 0, 0, 1);
+heightPark.windowIndex.c = api.createLocation("screen-1", 0, 0, 2);
+api.focusWindowByIndex(heightPark, "screen-1", 0, 2);
+
+api.parkWindow(heightPark, "b", "hidden");
+assert.deepEqual(plain(heightParkColumn.windows), ["a", "c"]);
+assert.deepEqual(plain(heightParkColumn.heightWeights), { a: 0.25, c: 0.75 });
+api.restoreWindow(heightPark, "b");
+assert.deepEqual(plain(heightParkColumn.windows), ["a", "b", "c"]);
+assert.deepEqual(plain(heightParkColumn.heightWeights), { a: 0.25, c: 0.75, b: 0.5 });
+
+api.removeWindow(heightPark, "c");
+api.removeWindow(heightPark, "b");
+assert.deepEqual(plain(heightParkColumn.windows), ["a"]);
+assert.deepEqual(plain(heightParkColumn.heightWeights), {});
