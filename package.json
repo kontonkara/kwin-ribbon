@@ -1,0 +1,15 @@
+{
+  "name": "kwin-ribbon",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "scripts": {
+    "build": "node scripts/build.js",
+    "build:check": "node scripts/build.js --check",
+    "test": "node tests/package.test.js && node tests/runtime.test.js",
+    "check": "npm run build:check && node --check contents/code/main.js && npm test",
+    "validate": "npm run check",
+    "kwin:install": "npm run build && kpackagetool6 --type=KWin/Script -i .",
+    "kwin:remove": "kpackagetool6 --type=KWin/Script -r kwin-ribbon"
+  }
+}

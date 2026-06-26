@@ -1,0 +1,19 @@
+{
+  "KPackageStructure": "KWin/Script",
+  "KPlugin": {
+    "Id": "kwin-ribbon",
+    "Name": "KWin Ribbon",
+    "Description": "Scrollable column tiling and ribbon-style window management for KWin.",
+    "Icon": "preferences-system-windows",
+    "Version": "0.1.0",
+    "License": "MIT",
+    "Authors": [
+      {
+        "Name": "kontonkara"
+      }
+    ]
+  },
+  "X-KDE-ConfigModule": "kwin/effects/configs/kcm_kwin4_genericscripted",
+  "X-Plasma-API": "javascript",
+  "X-Plasma-MainScript": "code/main.js"
+}

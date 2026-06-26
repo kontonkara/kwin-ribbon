@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kcfg xmlns="http://www.kde.org/standards/kcfg/1.0"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:schemaLocation="http://www.kde.org/standards/kcfg/1.0
+      https://www.kde.org/standards/kcfg/1.0/kcfg.xsd">
+  <kcfgfile name=""/>
+  <group name="General">
+    <entry name="gaps" type="Int">
+      <label>Gaps</label>
+      <default>16</default>
+    </entry>
+    <entry name="presetColumnWidths" type="String">
+      <label>Preset column widths</label>
+      <default>0.333333,0.5,0.666667</default>
+    </entry>
+    <entry name="presetWindowHeights" type="String">
+      <label>Preset window heights</label>
+      <default>0.333333,0.5,0.666667</default>
+    </entry>
+    <entry name="defaultColumnWidth" type="Double">
+      <label>Default column width</label>
+      <default>1.0</default>
+    </entry>
+    <entry name="defaultColumnDisplay" type="String">
+      <label>Default column display</label>
+      <default>normal</default>
+    </entry>
+    <entry name="centerFocusedColumn" type="String">
+      <label>Center focused column</label>
+      <default>never</default>
+    </entry>
+    <entry name="alwaysCenterSingleColumn" type="Bool">
+      <label>Always center a single column</label>
+      <default>false</default>
+    </entry>
+    <entry name="tileNewWindows" type="Bool">
+      <label>Tile new windows</label>
+      <default>true</default>
+    </entry>
+    <entry name="enableWindowManagementShortcuts" type="Bool">
+      <label>Enable window management shortcuts</label>
+      <default>true</default>
+    </entry>
+    <entry name="debugLogging" type="Bool">
+      <label>Enable debug logging</label>
+      <default>false</default>
+    </entry>
+  </group>
+</kcfg>
