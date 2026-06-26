@@ -2000,20 +2000,20 @@
     }
 
     var RIBBON_ACTION_SPECS = [
-        { name: "kwin-ribbon-focus-column-left", title: "Ribbon: Focus column left", shortcut: "Meta+Alt+H", handler: scopedAction(focusColumnLeft) },
-        { name: "kwin-ribbon-focus-column-right", title: "Ribbon: Focus column right", shortcut: "Meta+Alt+L", handler: scopedAction(focusColumnRight) },
-        { name: "kwin-ribbon-focus-window-up", title: "Ribbon: Focus window up", shortcut: "Meta+Alt+K", handler: scopedAction(focusWindowUp) },
-        { name: "kwin-ribbon-focus-window-down", title: "Ribbon: Focus window down", shortcut: "Meta+Alt+J", handler: scopedAction(focusWindowDown) },
-        { name: "kwin-ribbon-move-column-left", title: "Ribbon: Move column left", shortcut: "Meta+Alt+Shift+H", handler: scopedAction(moveColumnLeft) },
-        { name: "kwin-ribbon-move-column-right", title: "Ribbon: Move column right", shortcut: "Meta+Alt+Shift+L", handler: scopedAction(moveColumnRight) },
-        { name: "kwin-ribbon-move-window-up", title: "Ribbon: Move window up", shortcut: "Meta+Alt+Shift+K", handler: scopedAction(moveWindowUp) },
-        { name: "kwin-ribbon-move-window-down", title: "Ribbon: Move window down", shortcut: "Meta+Alt+Shift+J", handler: scopedAction(moveWindowDown) },
-        { name: "kwin-ribbon-next-column-width", title: "Ribbon: Next column width", shortcut: "Meta+Alt+W", handler: switchColumnWidthAction },
-        { name: "kwin-ribbon-previous-column-width", title: "Ribbon: Previous column width", shortcut: "Meta+Alt+Shift+W", handler: switchColumnWidthBackAction },
-        { name: "kwin-ribbon-maximize-column", title: "Ribbon: Maximize column", shortcut: "Meta+Alt+M", handler: scopedAction(toggleColumnFullWidth) },
-        { name: "kwin-ribbon-fullscreen-window", title: "Ribbon: Fullscreen window", shortcut: "Meta+Alt+F", handler: fullscreenWindowAction },
-        { name: "kwin-ribbon-toggle-floating", title: "Ribbon: Toggle floating", shortcut: "Meta+Alt+Space", handler: floatingWindowAction },
-        { name: "kwin-ribbon-center-column", title: "Ribbon: Center column", shortcut: "Meta+Alt+C", handler: centerColumnAction }
+        { name: "kwin-ribbon-interactive-focus-column-left", title: "Ribbon: Focus column left", shortcut: "Meta+Alt+H", handler: scopedAction(focusColumnLeft) },
+        { name: "kwin-ribbon-interactive-focus-column-right", title: "Ribbon: Focus column right", shortcut: "Meta+Alt+L", handler: scopedAction(focusColumnRight) },
+        { name: "kwin-ribbon-interactive-focus-window-up", title: "Ribbon: Focus window up", shortcut: "Meta+Alt+K", handler: scopedAction(focusWindowUp) },
+        { name: "kwin-ribbon-interactive-focus-window-down", title: "Ribbon: Focus window down", shortcut: "Meta+Alt+J", handler: scopedAction(focusWindowDown) },
+        { name: "kwin-ribbon-interactive-move-column-left", title: "Ribbon: Move column left", shortcut: "Meta+Alt+Shift+H", handler: scopedAction(moveColumnLeft) },
+        { name: "kwin-ribbon-interactive-move-column-right", title: "Ribbon: Move column right", shortcut: "Meta+Alt+Shift+L", handler: scopedAction(moveColumnRight) },
+        { name: "kwin-ribbon-interactive-move-window-up", title: "Ribbon: Move window up", shortcut: "Meta+Alt+Shift+K", handler: scopedAction(moveWindowUp) },
+        { name: "kwin-ribbon-interactive-move-window-down", title: "Ribbon: Move window down", shortcut: "Meta+Alt+Shift+J", handler: scopedAction(moveWindowDown) },
+        { name: "kwin-ribbon-interactive-next-column-width", title: "Ribbon: Next column width", shortcut: "Meta+Alt+W", handler: switchColumnWidthAction },
+        { name: "kwin-ribbon-interactive-previous-column-width", title: "Ribbon: Previous column width", shortcut: "Meta+Alt+Shift+W", handler: switchColumnWidthBackAction },
+        { name: "kwin-ribbon-interactive-maximize-column", title: "Ribbon: Maximize column", shortcut: "Meta+Alt+M", handler: scopedAction(toggleColumnFullWidth) },
+        { name: "kwin-ribbon-interactive-fullscreen-window", title: "Ribbon: Fullscreen window", shortcut: "Meta+Alt+F", handler: fullscreenWindowAction },
+        { name: "kwin-ribbon-interactive-toggle-floating", title: "Ribbon: Toggle floating", shortcut: "Meta+Alt+Space", handler: floatingWindowAction },
+        { name: "kwin-ribbon-interactive-center-column", title: "Ribbon: Center column", shortcut: "Meta+Alt+C", handler: centerColumnAction }
     ];
 
     function getRibbonActionSpecs() {
@@ -2144,13 +2144,27 @@
         return !!(value && isFinite(value.x) && isFinite(value.y) && isFinite(value.width) && isFinite(value.height) && value.width > 0 && value.height > 0);
     }
 
-    function fallbackArea(workspace) {
-        return normalizeGeometry(firstDefined([
-            workspace && workspace.virtualScreenGeometry,
-            workspace && workspace.workspaceGeometry,
-            workspace && workspace.clientArea,
-            { x: 0, y: 0, width: 1, height: 1 }
-        ]));
+    function boolConfigValue(value) {
+        return value === true || value === "true" || value === "1" || value === 1;
+    }
+
+    function debugLoggingEnabled(root) {
+        var value;
+        if (root && typeof root.readConfig === "function") {
+            try {
+                value = root.readConfig("debugLogging", false);
+            } catch (ignore) {
+                value = false;
+            }
+            return boolConfigValue(value);
+        }
+        return false;
+    }
+
+    function debugPrint(root, message) {
+        if (debugLoggingEnabled(root) && root && typeof root.print === "function") {
+            root.print(message);
+        }
     }
 
     function clientAreaKind(root, name, fallback) {
@@ -2200,32 +2214,100 @@
         return result;
     }
 
+    function desktopNumberFromDesktop(desktop) {
+        var number;
+        if (!desktop || typeof desktop !== "object") {
+            return null;
+        }
+        number = firstDefined([desktop.x11DesktopNumber, desktop.index]);
+        number = parseInt(number, 10);
+        return isFinite(number) ? number : null;
+    }
+
+    function workspaceDesktops(workspace) {
+        return toArray(firstDefined([
+            callIfFunction(workspace, "desktops"),
+            workspace && typeof workspace.desktops !== "function" ? workspace.desktops : undefined,
+            callIfFunction(workspace, "virtualDesktops"),
+            workspace && typeof workspace.virtualDesktops !== "function" ? workspace.virtualDesktops : undefined
+        ]));
+    }
+
+    function desktopCandidates(workspace, output, workspaceIndex) {
+        var desktopNumber = normalizeWorkspaceIndex(workspaceIndex) + 1;
+        var desktops = workspaceDesktops(workspace);
+        var result = [];
+        var current;
+        var i;
+        current = callIfFunction(workspace, "currentDesktopForScreen", [output]);
+        if (current) {
+            result.push(current);
+        }
+        current = firstDefined([
+            workspace && workspace.currentDesktop,
+            workspace && workspace.currentVirtualDesktop,
+            workspace && workspace.activeDesktop
+        ]);
+        if (current && result.indexOf(current) < 0) {
+            result.push(current);
+        }
+        for (i = 0; i < desktops.length; i += 1) {
+            if (desktopNumberFromDesktop(desktops[i]) === desktopNumber && result.indexOf(desktops[i]) < 0) {
+                result.push(desktops[i]);
+            }
+        }
+        return result;
+    }
+
+    function clientAreaOptions(root) {
+        return [
+            { name: "WorkArea", value: clientAreaKind(root, "WorkArea", 5) },
+            { name: "MaximizeArea", value: clientAreaKind(root, "MaximizeArea", 2) },
+            { name: "PlacementArea", value: clientAreaKind(root, "PlacementArea", 0) },
+            { name: "MovementArea", value: clientAreaKind(root, "MovementArea", 1) }
+        ];
+    }
+
+    function clientAreaResult(area, path) {
+        return {
+            area: area,
+            path: path
+        };
+    }
+
     function clientArea(root, workspace, outputId, workspaceIndex) {
         var area;
         var desktopNumber = normalizeWorkspaceIndex(workspaceIndex) + 1;
-        var kinds = [
-            clientAreaKind(root, "MaximizeArea", 1),
-            clientAreaKind(root, "WorkArea", 0),
-            1,
-            0
-        ];
+        var kinds = clientAreaOptions(root);
         var outputs = outputCandidates(workspace, outputId);
         var i;
         var j;
+        var k;
+        var desktops;
         for (i = 0; i < kinds.length; i += 1) {
             for (j = 0; j < outputs.length; j += 1) {
-                area = normalizeGeometry(callIfFunction(workspace, "clientArea", [kinds[i], outputs[j], desktopNumber]));
+                desktops = desktopCandidates(workspace, outputs[j], workspaceIndex);
+                for (k = 0; k < desktops.length; k += 1) {
+                    area = normalizeGeometry(callIfFunction(workspace, "clientArea", [kinds[i].value, outputs[j], desktops[k]]));
+                    if (validGeometry(area)) {
+                        return clientAreaResult(area, kinds[i].name + ":output-desktop");
+                    }
+                }
+                area = normalizeGeometry(callIfFunction(workspace, "clientArea", [kinds[i].value, outputs[j], desktopNumber]));
                 if (validGeometry(area)) {
-                    return area;
+                    return clientAreaResult(area, kinds[i].name + ":legacy-output-number");
                 }
             }
-            area = normalizeGeometry(callIfFunction(workspace, "clientArea", [kinds[i], desktopNumber]));
+            area = normalizeGeometry(callIfFunction(workspace, "clientArea", [kinds[i].value, desktopNumber]));
             if (validGeometry(area)) {
-                return area;
+                return clientAreaResult(area, kinds[i].name + ":legacy-number");
             }
         }
-        area = fallbackArea(workspace);
-        return validGeometry(area) ? area : { x: 0, y: 0, width: 1, height: 1 };
+        return clientAreaResult({ x: 0, y: 0, width: 1, height: 1 }, "fallback-1x1");
+    }
+
+    function formatGeometry(value) {
+        return value.x + "," + value.y + " " + value.width + "x" + value.height;
     }
 
     function createKWinEnvironment(root) {
@@ -2244,7 +2326,15 @@
                 return currentDesktopIndex(workspace);
             },
             getArrangeArea: function (outputId, workspaceIndex) {
-                return clientArea(globalRoot, workspace, outputId, workspaceIndex);
+                var result = clientArea(globalRoot, workspace, outputId, workspaceIndex);
+                this.lastClientArea = {
+                    outputId: String(outputId || "default"),
+                    workspaceIndex: normalizeWorkspaceIndex(workspaceIndex),
+                    path: result.path,
+                    area: result.area
+                };
+                debugPrint(globalRoot, "kwin-ribbon client area path=" + result.path + " output=" + this.lastClientArea.outputId + " workspace=" + this.lastClientArea.workspaceIndex + " area=" + formatGeometry(result.area));
+                return result.area;
             },
             setFrameGeometry: function (windowRef, frameGeometry) {
                 if (!windowRef || !validGeometry(frameGeometry)) {
@@ -2341,11 +2431,15 @@
         env = createKWinEnvironment(globalRoot);
         adapter = createKWinAdapter(env, readKWinOptions(env));
         globalRoot.__kwinRibbonAdapter = adapter;
+        globalRoot.kwinRibbonRunAction = function (actionName, arg) {
+            return adapter.dispatchAction(actionName, arg || {});
+        };
         globalRoot.kwinRibbonDebugSnapshot = function () {
             return adapter.debugSnapshot();
         };
         if (api) {
             api.adapter = adapter;
+            api.runAction = globalRoot.kwinRibbonRunAction;
             api.debugSnapshot = globalRoot.kwinRibbonDebugSnapshot;
         }
         env.print("kwin-ribbon loaded " + VERSION);
@@ -2384,6 +2478,12 @@
             return env.workspace.activeWindow || env.workspace.activeClient || null;
         }
         return null;
+    }
+
+    function adapterDebugLog(env, options, message) {
+        if (options && options.debugLogging === true && env && typeof env.print === "function") {
+            env.print(message);
+        }
     }
 
     function createKWinAdapter(env, rawOptions) {
@@ -2590,7 +2690,7 @@
 
         function applyFullscreenAction(actionName, entry) {
             var id;
-            if (actionName !== "kwin-ribbon-fullscreen-window" || !entry || !entry.windowRef || typeof adapterEnv.setWindowFullscreen !== "function") {
+            if (actionName !== "kwin-ribbon-interactive-fullscreen-window" || !entry || !entry.windowRef || typeof adapterEnv.setWindowFullscreen !== "function") {
                 return false;
             }
             id = entry.classification && entry.classification.windowId;
@@ -2617,6 +2717,7 @@
             var specs;
             var i;
             var spec;
+            var registered;
             if (shortcutsRegistered || options.enableWindowManagementShortcuts === false || typeof adapterEnv.registerShortcut !== "function") {
                 return false;
             }
@@ -2624,11 +2725,12 @@
             specs = getRibbonActionSpecs();
             for (i = 0; i < specs.length; i += 1) {
                 spec = specs[i];
-                adapterEnv.registerShortcut(spec.name, spec.title, spec.shortcut, (function (actionName) {
+                registered = adapterEnv.registerShortcut(spec.name, spec.title, spec.shortcut, (function (actionName) {
                     return function () {
                         dispatchAction(actionName);
                     };
                 }(spec.name)));
+                adapterDebugLog(adapterEnv, options, "kwin-ribbon shortcut action=" + spec.name + " default=" + spec.shortcut + " registered=" + (registered === false ? "false" : "true"));
             }
             return true;
         }
@@ -2662,6 +2764,8 @@
             return {
                 version: VERSION,
                 options: plainData(options),
+                actions: getRibbonActionSpecs(),
+                runActionAvailable: true,
                 state: plainData(state),
                 knownWindows: knownWindowSnapshots(),
                 lastProjection: lastProjection ? plainData(lastProjection) : null

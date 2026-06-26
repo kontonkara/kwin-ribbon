@@ -26,6 +26,12 @@
         return null;
     }
 
+    function adapterDebugLog(env, options, message) {
+        if (options && options.debugLogging === true && env && typeof env.print === "function") {
+            env.print(message);
+        }
+    }
+
     function createKWinAdapter(env, rawOptions) {
         var adapterEnv = env || {};
         var options = copyOptions(rawOptions);
@@ -230,7 +236,7 @@
 
         function applyFullscreenAction(actionName, entry) {
             var id;
-            if (actionName !== "kwin-ribbon-fullscreen-window" || !entry || !entry.windowRef || typeof adapterEnv.setWindowFullscreen !== "function") {
+            if (actionName !== "kwin-ribbon-interactive-fullscreen-window" || !entry || !entry.windowRef || typeof adapterEnv.setWindowFullscreen !== "function") {
                 return false;
             }
             id = entry.classification && entry.classification.windowId;
@@ -257,6 +263,7 @@
             var specs;
             var i;
             var spec;
+            var registered;
             if (shortcutsRegistered || options.enableWindowManagementShortcuts === false || typeof adapterEnv.registerShortcut !== "function") {
                 return false;
             }
@@ -264,11 +271,12 @@
             specs = getRibbonActionSpecs();
             for (i = 0; i < specs.length; i += 1) {
                 spec = specs[i];
-                adapterEnv.registerShortcut(spec.name, spec.title, spec.shortcut, (function (actionName) {
+                registered = adapterEnv.registerShortcut(spec.name, spec.title, spec.shortcut, (function (actionName) {
                     return function () {
                         dispatchAction(actionName);
                     };
                 }(spec.name)));
+                adapterDebugLog(adapterEnv, options, "kwin-ribbon shortcut action=" + spec.name + " default=" + spec.shortcut + " registered=" + (registered === false ? "false" : "true"));
             }
             return true;
         }
@@ -302,6 +310,8 @@
             return {
                 version: VERSION,
                 options: plainData(options),
+                actions: getRibbonActionSpecs(),
+                runActionAvailable: true,
                 state: plainData(state),
                 knownWindows: knownWindowSnapshots(),
                 lastProjection: lastProjection ? plainData(lastProjection) : null

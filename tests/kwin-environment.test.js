@@ -41,14 +41,20 @@ Object.defineProperty(blockedFrameWindow, "frameGeometry", {
 assert.equal(fallbackEnv.setFrameGeometry(blockedFrameWindow, { x: 1, y: 2, width: 3, height: 4 }), false);
 
 const added = { connect() {} };
-const screen = { name: "screen-1" };
+const desktop = { x11DesktopNumber: 2 };
+const screen = { name: "screen-1", geometry: { x: 0, y: 0, width: 1920, height: 1080 } };
 const workspace = {
   windowAdded: added,
   windowList: () => [{ internalId: "one" }],
   activeWindow: { internalId: "one" },
-  currentDesktop: { x11DesktopNumber: 2 },
-  outputs: [screen],
-  clientArea: (kind, output, desktop) => ({ x: desktop, y: 0, width: kind === 99 && output === screen ? 100 : 1, height: 50 }),
+  currentDesktop: desktop,
+  screens: [screen],
+  clientArea: (kind, output, requestedDesktop) => {
+    if (kind === 98 && output === screen && requestedDesktop === desktop) {
+      return { x: 0, y: 0, width: 1920, height: 1040 };
+    }
+    return screen.geometry;
+  },
   activateWindow(windowRef) {
     this.activated = windowRef;
   }
@@ -56,24 +62,30 @@ const workspace = {
 const registered = [];
 const messages = [];
 const env = api.createKWinEnvironment({
-  KWin: { MaximizeArea: 99, WorkArea: 98 },
+  KWin: { PlacementArea: 97, WorkArea: 98, MovementArea: 99, MaximizeArea: 100 },
   workspace,
   registerShortcut: (name, title, shortcut, callback) => registered.push({ name, title, shortcut, callback }),
-  readConfig: (key, defaultValue) => key === "gaps" ? 6 : defaultValue,
+  readConfig: (key, defaultValue) => key === "gaps" ? 6 : (key === "debugLogging" ? true : defaultValue),
   print: (message) => messages.push(message)
 });
 
 assert.deepEqual(plain(env.getWindows()), [{ internalId: "one" }]);
 assert.equal(env.getActiveWindow().internalId, "one");
 assert.equal(env.getCurrentDesktopIndex(), 1);
-assert.deepEqual(plain(env.getArrangeArea("screen-1", 1)), { x: 2, y: 0, width: 100, height: 50 });
+assert.deepEqual(plain(env.getArrangeArea("screen-1", 1)), { x: 0, y: 0, width: 1920, height: 1040 });
+assert.equal(env.lastClientArea.path, "WorkArea:output-desktop");
+assert.notEqual(env.lastClientArea.area.height, screen.geometry.height);
+assert.equal(messages.some((message) => message.indexOf("kwin-ribbon client area path=WorkArea:output-desktop") >= 0), true);
 assert.equal(env.activateWindow(win), true);
 assert.equal(workspace.activated, win);
 assert.equal(env.registerShortcut("name", "title", "", () => {}), true);
 assert.equal(registered.length, 1);
+assert.equal(registered[0].name, "name");
+assert.equal(registered[0].title, "title");
+assert.equal(registered[0].shortcut, "");
 assert.equal(api.readKWinOptions(env).gaps, 6);
 env.print("loaded");
-assert.deepEqual(messages, ["loaded"]);
+assert.equal(messages[messages.length - 1], "loaded");
 
 const smokeAdapter = api.createKWinAdapter(env, api.readKWinOptions(env));
 assert.doesNotThrow(() => smokeAdapter.start());

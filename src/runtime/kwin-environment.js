@@ -92,13 +92,27 @@
         return !!(value && isFinite(value.x) && isFinite(value.y) && isFinite(value.width) && isFinite(value.height) && value.width > 0 && value.height > 0);
     }
 
-    function fallbackArea(workspace) {
-        return normalizeGeometry(firstDefined([
-            workspace && workspace.virtualScreenGeometry,
-            workspace && workspace.workspaceGeometry,
-            workspace && workspace.clientArea,
-            { x: 0, y: 0, width: 1, height: 1 }
-        ]));
+    function boolConfigValue(value) {
+        return value === true || value === "true" || value === "1" || value === 1;
+    }
+
+    function debugLoggingEnabled(root) {
+        var value;
+        if (root && typeof root.readConfig === "function") {
+            try {
+                value = root.readConfig("debugLogging", false);
+            } catch (ignore) {
+                value = false;
+            }
+            return boolConfigValue(value);
+        }
+        return false;
+    }
+
+    function debugPrint(root, message) {
+        if (debugLoggingEnabled(root) && root && typeof root.print === "function") {
+            root.print(message);
+        }
     }
 
     function clientAreaKind(root, name, fallback) {
@@ -148,32 +162,100 @@
         return result;
     }
 
+    function desktopNumberFromDesktop(desktop) {
+        var number;
+        if (!desktop || typeof desktop !== "object") {
+            return null;
+        }
+        number = firstDefined([desktop.x11DesktopNumber, desktop.index]);
+        number = parseInt(number, 10);
+        return isFinite(number) ? number : null;
+    }
+
+    function workspaceDesktops(workspace) {
+        return toArray(firstDefined([
+            callIfFunction(workspace, "desktops"),
+            workspace && typeof workspace.desktops !== "function" ? workspace.desktops : undefined,
+            callIfFunction(workspace, "virtualDesktops"),
+            workspace && typeof workspace.virtualDesktops !== "function" ? workspace.virtualDesktops : undefined
+        ]));
+    }
+
+    function desktopCandidates(workspace, output, workspaceIndex) {
+        var desktopNumber = normalizeWorkspaceIndex(workspaceIndex) + 1;
+        var desktops = workspaceDesktops(workspace);
+        var result = [];
+        var current;
+        var i;
+        current = callIfFunction(workspace, "currentDesktopForScreen", [output]);
+        if (current) {
+            result.push(current);
+        }
+        current = firstDefined([
+            workspace && workspace.currentDesktop,
+            workspace && workspace.currentVirtualDesktop,
+            workspace && workspace.activeDesktop
+        ]);
+        if (current && result.indexOf(current) < 0) {
+            result.push(current);
+        }
+        for (i = 0; i < desktops.length; i += 1) {
+            if (desktopNumberFromDesktop(desktops[i]) === desktopNumber && result.indexOf(desktops[i]) < 0) {
+                result.push(desktops[i]);
+            }
+        }
+        return result;
+    }
+
+    function clientAreaOptions(root) {
+        return [
+            { name: "WorkArea", value: clientAreaKind(root, "WorkArea", 5) },
+            { name: "MaximizeArea", value: clientAreaKind(root, "MaximizeArea", 2) },
+            { name: "PlacementArea", value: clientAreaKind(root, "PlacementArea", 0) },
+            { name: "MovementArea", value: clientAreaKind(root, "MovementArea", 1) }
+        ];
+    }
+
+    function clientAreaResult(area, path) {
+        return {
+            area: area,
+            path: path
+        };
+    }
+
     function clientArea(root, workspace, outputId, workspaceIndex) {
         var area;
         var desktopNumber = normalizeWorkspaceIndex(workspaceIndex) + 1;
-        var kinds = [
-            clientAreaKind(root, "MaximizeArea", 1),
-            clientAreaKind(root, "WorkArea", 0),
-            1,
-            0
-        ];
+        var kinds = clientAreaOptions(root);
         var outputs = outputCandidates(workspace, outputId);
         var i;
         var j;
+        var k;
+        var desktops;
         for (i = 0; i < kinds.length; i += 1) {
             for (j = 0; j < outputs.length; j += 1) {
-                area = normalizeGeometry(callIfFunction(workspace, "clientArea", [kinds[i], outputs[j], desktopNumber]));
+                desktops = desktopCandidates(workspace, outputs[j], workspaceIndex);
+                for (k = 0; k < desktops.length; k += 1) {
+                    area = normalizeGeometry(callIfFunction(workspace, "clientArea", [kinds[i].value, outputs[j], desktops[k]]));
+                    if (validGeometry(area)) {
+                        return clientAreaResult(area, kinds[i].name + ":output-desktop");
+                    }
+                }
+                area = normalizeGeometry(callIfFunction(workspace, "clientArea", [kinds[i].value, outputs[j], desktopNumber]));
                 if (validGeometry(area)) {
-                    return area;
+                    return clientAreaResult(area, kinds[i].name + ":legacy-output-number");
                 }
             }
-            area = normalizeGeometry(callIfFunction(workspace, "clientArea", [kinds[i], desktopNumber]));
+            area = normalizeGeometry(callIfFunction(workspace, "clientArea", [kinds[i].value, desktopNumber]));
             if (validGeometry(area)) {
-                return area;
+                return clientAreaResult(area, kinds[i].name + ":legacy-number");
             }
         }
-        area = fallbackArea(workspace);
-        return validGeometry(area) ? area : { x: 0, y: 0, width: 1, height: 1 };
+        return clientAreaResult({ x: 0, y: 0, width: 1, height: 1 }, "fallback-1x1");
+    }
+
+    function formatGeometry(value) {
+        return value.x + "," + value.y + " " + value.width + "x" + value.height;
     }
 
     function createKWinEnvironment(root) {
@@ -192,7 +274,15 @@
                 return currentDesktopIndex(workspace);
             },
             getArrangeArea: function (outputId, workspaceIndex) {
-                return clientArea(globalRoot, workspace, outputId, workspaceIndex);
+                var result = clientArea(globalRoot, workspace, outputId, workspaceIndex);
+                this.lastClientArea = {
+                    outputId: String(outputId || "default"),
+                    workspaceIndex: normalizeWorkspaceIndex(workspaceIndex),
+                    path: result.path,
+                    area: result.area
+                };
+                debugPrint(globalRoot, "kwin-ribbon client area path=" + result.path + " output=" + this.lastClientArea.outputId + " workspace=" + this.lastClientArea.workspaceIndex + " area=" + formatGeometry(result.area));
+                return result.area;
             },
             setFrameGeometry: function (windowRef, frameGeometry) {
                 if (!windowRef || !validGeometry(frameGeometry)) {
@@ -289,11 +379,15 @@
         env = createKWinEnvironment(globalRoot);
         adapter = createKWinAdapter(env, readKWinOptions(env));
         globalRoot.__kwinRibbonAdapter = adapter;
+        globalRoot.kwinRibbonRunAction = function (actionName, arg) {
+            return adapter.dispatchAction(actionName, arg || {});
+        };
         globalRoot.kwinRibbonDebugSnapshot = function () {
             return adapter.debugSnapshot();
         };
         if (api) {
             api.adapter = adapter;
+            api.runAction = globalRoot.kwinRibbonRunAction;
             api.debugSnapshot = globalRoot.kwinRibbonDebugSnapshot;
         }
         env.print("kwin-ribbon loaded " + VERSION);
