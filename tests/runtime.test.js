@@ -116,7 +116,7 @@ assert.deepEqual(plain(api.createColumn(state, "win-3", {
   display: "normal"
 })), {
   id: "column-2",
-  width: 1.5,
+  width: 2,
   widthFixed: true,
   fullWidth: true,
   restoreWidth: null,
@@ -612,6 +612,61 @@ assert.deepEqual(plain(swapColumnWorkspace.columns.map((column) => column.window
   ["one"]
 ]);
 assert.equal(swapColumnWorkspace.focusColumn, 0);
+
+const scrollState = api.createState({ gaps: 10, centerFocusedColumn: "never" });
+const scrollWorkspace = api.ensureWorkspace(scrollState, "screen-1", 0);
+scrollWorkspace.columns.push(
+  api.createColumn(scrollState, "s1", { width: 100, widthFixed: true }),
+  api.createColumn(scrollState, "s2", { width: 100, widthFixed: true }),
+  api.createColumn(scrollState, "s3", { width: 100, widthFixed: true })
+);
+
+assert.deepEqual(plain(api.computeColumnMetrics(scrollState, "screen-1", 0, 250).columns.map((column) => ({
+  start: column.start,
+  end: column.end,
+  width: column.width
+}))), [
+  { start: 0, end: 100, width: 100 },
+  { start: 110, end: 210, width: 100 },
+  { start: 220, end: 320, width: 100 }
+]);
+assert.equal(api.computeColumnMetrics(scrollState, "screen-1", 0, 250).contentWidth, 320);
+
+scrollWorkspace.focusColumn = 2;
+scrollWorkspace.scrollOffset = 0;
+assert.equal(api.fitFocusedColumnIntoViewport(scrollState, "screen-1", 0, 250), 70);
+assert.equal(scrollWorkspace.scrollOffset, 70);
+
+scrollWorkspace.focusColumn = 0;
+assert.equal(api.fitFocusedColumnIntoViewport(scrollState, "screen-1", 0, 250), 0);
+
+scrollWorkspace.focusColumn = 1;
+assert.equal(api.centerFocusedColumnInViewport(scrollState, "screen-1", 0, 250), 35);
+
+scrollWorkspace.scrollOffset = 0;
+scrollWorkspace.prevFocusColumn = 0;
+scrollWorkspace.focusColumn = 1;
+assert.equal(api.updateScrollOffsetForFocus(scrollState, "screen-1", 0, 250, { centerFocusedColumn: "on-overflow" }), 0);
+
+scrollWorkspace.prevFocusColumn = 0;
+scrollWorkspace.focusColumn = 2;
+assert.equal(api.updateScrollOffsetForFocus(scrollState, "screen-1", 0, 250, { centerFocusedColumn: "on-overflow" }), 145);
+
+scrollWorkspace.scrollOffset = 0;
+scrollWorkspace.focusColumn = 0;
+assert.equal(api.centerVisibleColumns(scrollState, "screen-1", 0, 250), -20);
+
+scrollWorkspace.scrollOffset = 0;
+scrollWorkspace.focusColumn = 2;
+assert.equal(api.centerVisibleColumns(scrollState, "screen-1", 0, 250), 0);
+
+const singleScroll = api.createState({ alwaysCenterSingleColumn: true });
+const singleScrollWorkspace = api.ensureWorkspace(singleScroll, "screen-1", 0);
+singleScrollWorkspace.columns.push(api.createColumn(singleScroll, "only", { width: 100, widthFixed: true }));
+assert.equal(api.updateScrollOffsetForFocus(singleScroll, "screen-1", 0, 300, { centerFocusedColumn: "never", gap: 0 }), -100);
+
+assert.equal(api.setScrollOffset(singleScroll, "screen-1", 0, "25"), 25);
+assert.equal(singleScrollWorkspace.scrollOffset, 25);
 
 assert.deepEqual(plain(api.swapWindowLeft(swapColumnState, "screen-1", 0)), {
   outputId: "screen-1",

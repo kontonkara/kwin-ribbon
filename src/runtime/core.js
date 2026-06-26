@@ -202,10 +202,11 @@
     function createColumn(state, windowIds, options) {
         var opts = options || {};
         var windows = normalizeWindowIds(windowIds);
+        var widthFixed = opts.widthFixed === true;
         return {
             id: nextId(state, "nextColumnId", "column-"),
-            width: clampRatio(opts.width === undefined ? state.options.defaultColumnWidth : opts.width),
-            widthFixed: opts.widthFixed === true,
+            width: widthFixed ? clampFixedWidth(opts.width) : clampRatio(opts.width === undefined ? state.options.defaultColumnWidth : opts.width),
+            widthFixed: widthFixed,
             fullWidth: opts.fullWidth === true,
             restoreWidth: null,
             restoreWidthFixed: null,
@@ -1263,6 +1264,197 @@
         return swapWindow(state, outputId, workspaceIndex, 1);
     }
 
+    function clampViewportWidth(value) {
+        var number = parseFloat(value);
+        if (!isFinite(number) || number <= 0) {
+            return 1;
+        }
+        return number;
+    }
+
+    function scrollGap(state, gap) {
+        if (gap !== undefined && gap !== null) {
+            return Math.max(0, parseFloat(gap) || 0);
+        }
+        return Math.max(0, parseFloat(state.options.gaps) || 0);
+    }
+
+    function columnExtent(column, viewportWidth) {
+        if (column.fullWidth) {
+            return viewportWidth;
+        }
+        if (column.widthFixed) {
+            return clampFixedWidth(column.width);
+        }
+        return clampRatio(column.width) * viewportWidth;
+    }
+
+    function computeColumnMetrics(state, outputId, workspaceIndex, viewportWidth, gap) {
+        var ref = workspaceRef(state, outputId, workspaceIndex);
+        var viewport = clampViewportWidth(viewportWidth);
+        var spacing = scrollGap(state, gap);
+        var metrics = [];
+        var x = 0;
+        var i;
+        var width;
+
+        for (i = 0; i < ref.workspace.columns.length; i += 1) {
+            width = columnExtent(ref.workspace.columns[i], viewport);
+            metrics.push({
+                index: i,
+                id: ref.workspace.columns[i].id,
+                start: x,
+                end: x + width,
+                width: width
+            });
+            x += width;
+            if (i < ref.workspace.columns.length - 1) {
+                x += spacing;
+            }
+        }
+
+        return {
+            outputId: ref.outputId,
+            workspaceIndex: ref.workspaceIndex,
+            viewportWidth: viewport,
+            gap: spacing,
+            contentWidth: metrics.length > 0 ? metrics[metrics.length - 1].end : 0,
+            columns: metrics
+        };
+    }
+
+    function fitOffsetForMetric(currentOffset, metric, viewportWidth, contentWidth) {
+        var maxOffset = Math.max(0, contentWidth - viewportWidth);
+        var target = parseFloat(currentOffset) || 0;
+
+        if (!metric) {
+            return Math.max(0, Math.min(target, maxOffset));
+        }
+        if (metric.start < target) {
+            target = metric.start;
+        } else if (metric.end > target + viewportWidth) {
+            target = metric.end - viewportWidth;
+        }
+        return Math.max(0, Math.min(target, maxOffset));
+    }
+
+    function centerOffsetForMetric(metric, viewportWidth) {
+        if (!metric) {
+            return 0;
+        }
+        return (metric.start + metric.end) / 2 - viewportWidth / 2;
+    }
+
+    function setScrollOffset(state, outputId, workspaceIndex, offset) {
+        var ref = workspaceRef(state, outputId, workspaceIndex);
+        ref.workspace.scrollOffset = parseFloat(offset) || 0;
+        return ref.workspace.scrollOffset;
+    }
+
+    function fitFocusedColumnIntoViewport(state, outputId, workspaceIndex, viewportWidth, gap) {
+        var ref = focusedColumnRef(state, outputId, workspaceIndex);
+        var metrics;
+        var target;
+        if (!ref) {
+            return null;
+        }
+        metrics = computeColumnMetrics(state, ref.outputId, ref.workspaceIndex, viewportWidth, gap);
+        target = fitOffsetForMetric(
+            ref.workspace.scrollOffset,
+            metrics.columns[ref.columnIndex],
+            metrics.viewportWidth,
+            metrics.contentWidth
+        );
+        ref.workspace.scrollOffset = target;
+        return target;
+    }
+
+    function centerFocusedColumnInViewport(state, outputId, workspaceIndex, viewportWidth, gap) {
+        var ref = focusedColumnRef(state, outputId, workspaceIndex);
+        var metrics;
+        var target;
+        if (!ref) {
+            return null;
+        }
+        metrics = computeColumnMetrics(state, ref.outputId, ref.workspaceIndex, viewportWidth, gap);
+        target = centerOffsetForMetric(metrics.columns[ref.columnIndex], metrics.viewportWidth);
+        ref.workspace.scrollOffset = target;
+        return target;
+    }
+
+    function updateScrollOffsetForFocus(state, outputId, workspaceIndex, viewportWidth, options) {
+        var opts = options || {};
+        var ref = focusedColumnRef(state, outputId, workspaceIndex);
+        var mode;
+        var metrics;
+        var previous;
+        var current;
+        var spanStart;
+        var spanEnd;
+        var target;
+
+        if (!ref) {
+            return null;
+        }
+        mode = normalizeCenterFocusedColumn(opts.centerFocusedColumn || ref.workspace.centerFocusedColumn || state.options.centerFocusedColumn);
+        metrics = computeColumnMetrics(state, ref.outputId, ref.workspaceIndex, viewportWidth, opts.gap);
+        current = metrics.columns[ref.columnIndex];
+
+        if ((opts.alwaysCenterSingleColumn === true || state.options.alwaysCenterSingleColumn) && metrics.columns.length === 1) {
+            target = centerOffsetForMetric(current, metrics.viewportWidth);
+        } else if (mode === "always") {
+            target = centerOffsetForMetric(current, metrics.viewportWidth);
+        } else if (mode === "on-overflow" && ref.workspace.prevFocusColumn >= 0 && ref.workspace.prevFocusColumn < metrics.columns.length) {
+            previous = metrics.columns[ref.workspace.prevFocusColumn];
+            spanStart = Math.min(previous.start, current.start);
+            spanEnd = Math.max(previous.end, current.end);
+            if (spanEnd - spanStart > metrics.viewportWidth) {
+                target = centerOffsetForMetric(current, metrics.viewportWidth);
+            } else {
+                target = fitOffsetForMetric(ref.workspace.scrollOffset, current, metrics.viewportWidth, metrics.contentWidth);
+            }
+        } else {
+            target = fitOffsetForMetric(ref.workspace.scrollOffset, current, metrics.viewportWidth, metrics.contentWidth);
+        }
+
+        ref.workspace.scrollOffset = target;
+        return target;
+    }
+
+    function centerVisibleColumns(state, outputId, workspaceIndex, viewportWidth, gap) {
+        var ref = focusedColumnRef(state, outputId, workspaceIndex);
+        var metrics;
+        var viewportStart;
+        var viewportEnd;
+        var first = -1;
+        var last = -1;
+        var i;
+        var metric;
+        var target;
+
+        if (!ref) {
+            return null;
+        }
+        metrics = computeColumnMetrics(state, ref.outputId, ref.workspaceIndex, viewportWidth, gap);
+        viewportStart = ref.workspace.scrollOffset;
+        viewportEnd = viewportStart + metrics.viewportWidth;
+        for (i = 0; i < metrics.columns.length; i += 1) {
+            metric = metrics.columns[i];
+            if (metric.start >= viewportStart && metric.end <= viewportEnd) {
+                if (first < 0) {
+                    first = i;
+                }
+                last = i;
+            }
+        }
+        if (ref.columnIndex < first || ref.columnIndex > last || first < 0) {
+            return ref.workspace.scrollOffset;
+        }
+        target = (metrics.columns[first].start + metrics.columns[last].end) / 2 - metrics.viewportWidth / 2;
+        ref.workspace.scrollOffset = target;
+        return target;
+    }
+
     function createState(options) {
         return {
             options: copyOptions(options),
@@ -1341,6 +1533,12 @@
             consumeOrExpelLeft: consumeOrExpelLeft,
             consumeOrExpelRight: consumeOrExpelRight,
             swapWindowLeft: swapWindowLeft,
-            swapWindowRight: swapWindowRight
+            swapWindowRight: swapWindowRight,
+            computeColumnMetrics: computeColumnMetrics,
+            setScrollOffset: setScrollOffset,
+            fitFocusedColumnIntoViewport: fitFocusedColumnIntoViewport,
+            centerFocusedColumnInViewport: centerFocusedColumnInViewport,
+            updateScrollOffsetForFocus: updateScrollOffsetForFocus,
+            centerVisibleColumns: centerVisibleColumns
         };
     }
