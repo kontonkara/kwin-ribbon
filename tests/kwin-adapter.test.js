@@ -87,3 +87,16 @@ assert.equal(syncAdapter.state.windowIndex.c.columnIndex, 1);
 
 windowRemoved.emit({ internalId: "c" });
 assert.equal(syncAdapter.state.windowIndex.c, undefined);
+
+const firstWindow = { internalId: "p1", output: "screen-1" };
+const secondWindow = { internalId: "p2", output: "screen-1" };
+const projectionAdapter = api.createKWinAdapter({
+  getArrangeArea: () => ({ x: 10, y: 20, width: 300, height: 200 })
+}, { gaps: 10 });
+
+projectionAdapter.handleWindowAdded(firstWindow);
+projectionAdapter.handleWindowAdded(secondWindow);
+projectionAdapter.arrange({ outputId: "screen-1", workspaceIndex: 0 });
+assert.deepEqual(plain(firstWindow.frameGeometry), { x: 10, y: 20, width: 300, height: 200 });
+assert.deepEqual(plain(secondWindow.frameGeometry), { x: 320, y: 20, width: 300, height: 200 });
+assert.equal(projectionAdapter.lastProjection().frames.length, 2);

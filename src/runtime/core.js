@@ -1687,6 +1687,7 @@
             centerFocusedColumnInViewport: centerFocusedColumnInViewport,
             updateScrollOffsetForFocus: updateScrollOffsetForFocus,
             centerVisibleColumns: centerVisibleColumns,
+            projectArrangeScope: projectArrangeScope,
             setWindowFloating: setWindowFloating,
             toggleWindowFloating: toggleWindowFloating,
             setRuleFloating: setRuleFloating,

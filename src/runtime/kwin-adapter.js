@@ -32,6 +32,7 @@
         var state = createState(options);
         var registry = emptyMap();
         var started = false;
+        var lastProjection = null;
 
         function classify(windowRef, fallbackId) {
             return classifyWindow(windowRef, { fallbackId: fallbackId });
@@ -123,6 +124,46 @@
             return syncWindows();
         }
 
+        function defaultArrangeScope(scope) {
+            var value = scope || {};
+            var active = adapterActiveWindow(adapterEnv);
+            var activeInfo = active ? classify(active) : null;
+            var outputId = value.outputId || (activeInfo && activeInfo.outputId) || "default";
+            var workspaceIndex = value.workspaceIndex !== undefined ? value.workspaceIndex : ((activeInfo && activeInfo.workspaceIndex) || 0);
+            var area = value.area;
+            if (!area && typeof adapterEnv.getArrangeArea === "function") {
+                area = adapterEnv.getArrangeArea(outputId, workspaceIndex);
+            }
+            return {
+                outputId: outputId,
+                workspaceIndex: workspaceIndex,
+                area: area || { x: 0, y: 0, width: 1, height: 1 },
+                gap: value.gap
+            };
+        }
+
+        function writeFrame(windowRef, frameGeometry) {
+            if (typeof adapterEnv.setFrameGeometry === "function") {
+                adapterEnv.setFrameGeometry(windowRef, frameGeometry);
+                return;
+            }
+            windowRef.frameGeometry = frameGeometry;
+        }
+
+        function arrange(scope) {
+            var projection = projectArrangeScope(state, defaultArrangeScope(scope));
+            var i;
+            var entry;
+            for (i = 0; i < projection.frames.length; i += 1) {
+                entry = registry[projection.frames[i].windowId];
+                if (entry && entry.windowRef) {
+                    writeFrame(entry.windowRef, projection.frames[i].frameGeometry);
+                }
+            }
+            lastProjection = projection;
+            return projection;
+        }
+
         return {
             state: state,
             registry: registry,
@@ -131,6 +172,10 @@
             syncWindows: syncWindows,
             handleWindowAdded: handleWindowAdded,
             handleWindowRemoved: handleWindowRemoved,
-            handleActiveWindowChanged: handleActiveWindowChanged
+            handleActiveWindowChanged: handleActiveWindowChanged,
+            arrange: arrange,
+            lastProjection: function () {
+                return lastProjection;
+            }
         };
     }
