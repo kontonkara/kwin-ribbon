@@ -101,20 +101,73 @@
         ]));
     }
 
-    function clientArea(workspace, outputId, workspaceIndex) {
+    function clientAreaKind(root, name, fallback) {
+        var kwin = root && root.KWin;
+        return firstDefined([
+            kwin && kwin[name],
+            root && root[name],
+            fallback
+        ]);
+    }
+
+    function outputName(output) {
+        if (!output || typeof output !== "object") {
+            return output;
+        }
+        return firstDefined([
+            output.name,
+            output.id,
+            output.serialNumber
+        ]);
+    }
+
+    function workspaceOutputs(workspace) {
+        return toArray(firstDefined([
+            callIfFunction(workspace, "outputs"),
+            workspace && typeof workspace.outputs !== "function" ? workspace.outputs : undefined,
+            callIfFunction(workspace, "screens"),
+            workspace && typeof workspace.screens !== "function" ? workspace.screens : undefined
+        ]));
+    }
+
+    function outputCandidates(workspace, outputId) {
+        var id = String(outputId || "default");
+        var outputs = workspaceOutputs(workspace);
+        var result = [];
+        var i;
+        var name;
+        for (i = 0; i < outputs.length; i += 1) {
+            name = outputName(outputs[i]);
+            if ((id !== "default" && String(name) === id) || (id === "default" && outputs.length === 1)) {
+                result.push(outputs[i]);
+            }
+        }
+        if (id !== "default") {
+            result.push(id);
+        }
+        return result;
+    }
+
+    function clientArea(root, workspace, outputId, workspaceIndex) {
         var area;
         var desktopNumber = normalizeWorkspaceIndex(workspaceIndex) + 1;
-        var attempts = [
-            ["MaximizeArea", outputId, desktopNumber],
-            ["WorkArea", outputId, desktopNumber],
-            [1, outputId, desktopNumber],
-            [0, outputId, desktopNumber],
-            ["MaximizeArea", desktopNumber],
-            ["WorkArea", desktopNumber]
+        var kinds = [
+            clientAreaKind(root, "MaximizeArea", 1),
+            clientAreaKind(root, "WorkArea", 0),
+            1,
+            0
         ];
+        var outputs = outputCandidates(workspace, outputId);
         var i;
-        for (i = 0; i < attempts.length; i += 1) {
-            area = normalizeGeometry(callIfFunction(workspace, "clientArea", attempts[i]));
+        var j;
+        for (i = 0; i < kinds.length; i += 1) {
+            for (j = 0; j < outputs.length; j += 1) {
+                area = normalizeGeometry(callIfFunction(workspace, "clientArea", [kinds[i], outputs[j], desktopNumber]));
+                if (validGeometry(area)) {
+                    return area;
+                }
+            }
+            area = normalizeGeometry(callIfFunction(workspace, "clientArea", [kinds[i], desktopNumber]));
             if (validGeometry(area)) {
                 return area;
             }
@@ -139,14 +192,18 @@
                 return currentDesktopIndex(workspace);
             },
             getArrangeArea: function (outputId, workspaceIndex) {
-                return clientArea(workspace, outputId, workspaceIndex);
+                return clientArea(globalRoot, workspace, outputId, workspaceIndex);
             },
             setFrameGeometry: function (windowRef, frameGeometry) {
                 if (!windowRef || !validGeometry(frameGeometry)) {
                     return false;
                 }
-                windowRef.frameGeometry = frameGeometry;
-                return true;
+                try {
+                    windowRef.frameGeometry = frameGeometry;
+                    return true;
+                } catch (ignore) {
+                    return false;
+                }
             },
             setWindowFullscreen: function (windowRef, enabled) {
                 if (!windowRef) {
@@ -160,20 +217,28 @@
                 }
             },
             activateWindow: function (windowRef) {
-                if (typeof workspace.activateWindow === "function") {
-                    workspace.activateWindow(windowRef);
-                    return true;
-                }
-                if (typeof workspace.activeWindow !== "undefined") {
-                    workspace.activeWindow = windowRef;
-                    return true;
+                try {
+                    if (typeof workspace.activateWindow === "function") {
+                        workspace.activateWindow(windowRef);
+                        return true;
+                    }
+                    if (typeof workspace.activeWindow !== "undefined") {
+                        workspace.activeWindow = windowRef;
+                        return true;
+                    }
+                } catch (ignore) {
+                    return false;
                 }
                 return false;
             },
             registerShortcut: function (name, title, shortcut, callback) {
                 if (typeof globalRoot.registerShortcut === "function") {
-                    globalRoot.registerShortcut(name, title, shortcut, callback);
-                    return true;
+                    try {
+                        globalRoot.registerShortcut(name, title, shortcut, callback);
+                        return true;
+                    } catch (ignore) {
+                        return false;
+                    }
                 }
                 return false;
             },

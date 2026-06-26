@@ -32,14 +32,23 @@ assert.equal(fallbackEnv.setFrameGeometry(win, { x: 1, y: 2, width: 3, height: 4
 assert.deepEqual(plain(win.frameGeometry), { x: 1, y: 2, width: 3, height: 4 });
 assert.equal(fallbackEnv.setWindowFullscreen(win, true), true);
 assert.equal(win.fullScreen, true);
+const blockedFrameWindow = {};
+Object.defineProperty(blockedFrameWindow, "frameGeometry", {
+  set() {
+    throw new Error("blocked");
+  }
+});
+assert.equal(fallbackEnv.setFrameGeometry(blockedFrameWindow, { x: 1, y: 2, width: 3, height: 4 }), false);
 
 const added = { connect() {} };
+const screen = { name: "screen-1" };
 const workspace = {
   windowAdded: added,
   windowList: () => [{ internalId: "one" }],
   activeWindow: { internalId: "one" },
   currentDesktop: { x11DesktopNumber: 2 },
-  clientArea: (kind, outputId, desktop) => ({ x: desktop, y: 0, width: outputId === "screen-1" ? 100 : 1, height: 50 }),
+  outputs: [screen],
+  clientArea: (kind, output, desktop) => ({ x: desktop, y: 0, width: kind === 99 && output === screen ? 100 : 1, height: 50 }),
   activateWindow(windowRef) {
     this.activated = windowRef;
   }
@@ -47,6 +56,7 @@ const workspace = {
 const registered = [];
 const messages = [];
 const env = api.createKWinEnvironment({
+  KWin: { MaximizeArea: 99, WorkArea: 98 },
   workspace,
   registerShortcut: (name, title, shortcut, callback) => registered.push({ name, title, shortcut, callback }),
   readConfig: (key, defaultValue) => key === "gaps" ? 6 : defaultValue,
