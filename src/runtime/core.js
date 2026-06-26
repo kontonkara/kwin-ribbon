@@ -559,6 +559,32 @@
         return id ? state.windowIndex[id] || null : null;
     }
 
+    function focusWindowById(state, windowId) {
+        var id = String(windowId || "");
+        var location = id === "" ? null : state.windowIndex[id];
+        var output;
+        var workspace;
+        var column;
+        if (!location) {
+            return null;
+        }
+        output = ensureOutput(state, location.outputId);
+        output.currentWorkspaceIndex = location.workspaceIndex;
+        workspace = ensureWorkspace(state, location.outputId, location.workspaceIndex);
+        if (!workspace.columns[location.columnIndex]) {
+            return null;
+        }
+        if (workspace.focusColumn !== location.columnIndex) {
+            workspace.prevFocusColumn = workspace.focusColumn;
+            workspace.prevColumnOnRemoval = -1;
+        }
+        workspace.focusColumn = location.columnIndex;
+        column = workspace.columns[location.columnIndex];
+        column.focusWindow = clampIndex(location.windowIndex, column.windows.length);
+        updateLastTiledWindow(state, workspace);
+        return state.windowIndex[id];
+    }
+
     function workspaceRef(state, outputId, workspaceIndex) {
         var output = ensureOutput(state, outputId);
         var index = workspaceIndex;
@@ -1611,6 +1637,7 @@
             removeWindow: removeWindow,
             parkWindow: parkWindow,
             restoreWindow: restoreWindow,
+            focusWindowById: focusWindowById,
             setColumnWidth: setColumnWidth,
             adjustColumnWidth: adjustColumnWidth,
             setColumnFixedWidth: setColumnFixedWidth,
@@ -1668,6 +1695,7 @@
             windowIdFromWindow: windowIdFromWindow,
             outputIdFromWindow: outputIdFromWindow,
             workspaceIndexFromWindow: workspaceIndexFromWindow,
-            classifyWindow: classifyWindow
+            classifyWindow: classifyWindow,
+            createKWinAdapter: createKWinAdapter
         };
     }

@@ -568,6 +568,32 @@
         return id ? state.windowIndex[id] || null : null;
     }
 
+    function focusWindowById(state, windowId) {
+        var id = String(windowId || "");
+        var location = id === "" ? null : state.windowIndex[id];
+        var output;
+        var workspace;
+        var column;
+        if (!location) {
+            return null;
+        }
+        output = ensureOutput(state, location.outputId);
+        output.currentWorkspaceIndex = location.workspaceIndex;
+        workspace = ensureWorkspace(state, location.outputId, location.workspaceIndex);
+        if (!workspace.columns[location.columnIndex]) {
+            return null;
+        }
+        if (workspace.focusColumn !== location.columnIndex) {
+            workspace.prevFocusColumn = workspace.focusColumn;
+            workspace.prevColumnOnRemoval = -1;
+        }
+        workspace.focusColumn = location.columnIndex;
+        column = workspace.columns[location.columnIndex];
+        column.focusWindow = clampIndex(location.windowIndex, column.windows.length);
+        updateLastTiledWindow(state, workspace);
+        return state.windowIndex[id];
+    }
+
     function workspaceRef(state, outputId, workspaceIndex) {
         var output = ensureOutput(state, outputId);
         var index = workspaceIndex;
@@ -1620,6 +1646,7 @@
             removeWindow: removeWindow,
             parkWindow: parkWindow,
             restoreWindow: restoreWindow,
+            focusWindowById: focusWindowById,
             setColumnWidth: setColumnWidth,
             adjustColumnWidth: adjustColumnWidth,
             setColumnFixedWidth: setColumnFixedWidth,
@@ -1677,7 +1704,8 @@
             windowIdFromWindow: windowIdFromWindow,
             outputIdFromWindow: outputIdFromWindow,
             workspaceIndexFromWindow: workspaceIndexFromWindow,
-            classifyWindow: classifyWindow
+            classifyWindow: classifyWindow,
+            createKWinAdapter: createKWinAdapter
         };
     }
 
@@ -1825,6 +1853,143 @@
             return classification(windowRef, options, "fullscreen", "fullscreen", true);
         }
         return classification(windowRef, options, "tile", "normal", true);
+    }
+
+    function signalConnect(signal, handler) {
+        if (signal && typeof signal.connect === "function") {
+            signal.connect(handler);
+            return true;
+        }
+        return false;
+    }
+
+    function adapterWindows(env) {
+        if (env && typeof env.getWindows === "function") {
+            return env.getWindows() || [];
+        }
+        if (env && env.workspace && env.workspace.windowList) {
+            return env.workspace.windowList;
+        }
+        return [];
+    }
+
+    function adapterActiveWindow(env) {
+        if (env && typeof env.getActiveWindow === "function") {
+            return env.getActiveWindow();
+        }
+        if (env && env.workspace) {
+            return env.workspace.activeWindow || env.workspace.activeClient || null;
+        }
+        return null;
+    }
+
+    function createKWinAdapter(env, rawOptions) {
+        var adapterEnv = env || {};
+        var options = copyOptions(rawOptions);
+        var state = createState(options);
+        var registry = emptyMap();
+        var started = false;
+
+        function classify(windowRef, fallbackId) {
+            return classifyWindow(windowRef, { fallbackId: fallbackId });
+        }
+
+        function remember(windowRef, info) {
+            if (!info.windowId) {
+                return;
+            }
+            registry[info.windowId] = {
+                windowRef: windowRef,
+                classification: info
+            };
+        }
+
+        function handleWindowAdded(windowRef) {
+            var info = classify(windowRef);
+            if (!info.windowId || !info.manageable) {
+                return info;
+            }
+            remember(windowRef, info);
+            if (info.action === "tile" && options.tileNewWindows !== false) {
+                addWindow(state, info.outputId, info.workspaceIndex, info.windowId);
+            } else if (info.action === "fullscreen") {
+                setWindowFullscreen(state, info.windowId, true);
+            } else if (info.action === "park" && state.windowIndex[info.windowId]) {
+                parkWindow(state, info.windowId, info.reason);
+            }
+            return info;
+        }
+
+        function handleWindowRemoved(windowRefOrId) {
+            var id = typeof windowRefOrId === "string" ? windowRefOrId : windowIdFromWindow(windowRefOrId);
+            if (!id) {
+                return null;
+            }
+            delete registry[id];
+            removeWindow(state, id);
+            return id;
+        }
+
+        function handleActiveWindowChanged(windowRef) {
+            var id = windowIdFromWindow(windowRef);
+            if (!id) {
+                return null;
+            }
+            if (state.windowIndex[id]) {
+                return focusWindowById(state, id);
+            }
+            if (state.floating[id]) {
+                state.lastFloatingWindowId = id;
+            }
+            return null;
+        }
+
+        function syncWindows() {
+            var windows = adapterWindows(adapterEnv);
+            var seen = emptyMap();
+            var i;
+            var info;
+            var id;
+            for (i = 0; i < windows.length; i += 1) {
+                info = handleWindowAdded(windows[i]);
+                if (info && info.windowId) {
+                    seen[info.windowId] = true;
+                }
+            }
+            for (id in registry) {
+                if (hasOwn(registry, id) && !seen[id]) {
+                    handleWindowRemoved(id);
+                }
+            }
+            handleActiveWindowChanged(adapterActiveWindow(adapterEnv));
+            return state;
+        }
+
+        function start() {
+            if (started) {
+                return state;
+            }
+            started = true;
+            if (adapterEnv.workspace) {
+                signalConnect(adapterEnv.workspace.windowAdded, handleWindowAdded);
+                signalConnect(adapterEnv.workspace.windowRemoved, handleWindowRemoved);
+                signalConnect(adapterEnv.workspace.windowDeleted, handleWindowRemoved);
+                signalConnect(adapterEnv.workspace.activeWindowChanged, handleActiveWindowChanged);
+                signalConnect(adapterEnv.workspace.clientActivated, handleActiveWindowChanged);
+            }
+            return syncWindows();
+        }
+
+        return {
+            state: state,
+            registry: registry,
+            options: options,
+            start: start,
+            syncWindows: syncWindows,
+            handleWindowAdded: handleWindowAdded,
+            handleWindowRemoved: handleWindowRemoved,
+            handleActiveWindowChanged: handleActiveWindowChanged
+        };
     }
 
     root.KWinRibbon = createApi();
