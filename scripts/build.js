@@ -9,6 +9,7 @@ const outputFile = path.join(root, "contents", "code", "main.js");
 const sourceFiles = [
   path.join(root, "src", "runtime", "header.js"),
   path.join(root, "src", "runtime", "core.js"),
+  path.join(root, "src", "runtime", "classification.js"),
   path.join(root, "src", "runtime", "bootstrap.js"),
   path.join(root, "src", "runtime", "footer.js")
 ];

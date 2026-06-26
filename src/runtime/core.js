@@ -1664,6 +1664,10 @@
             toggleWindowFloating: toggleWindowFloating,
             setRuleFloating: setRuleFloating,
             setWindowFullscreen: setWindowFullscreen,
-            toggleWindowFullscreen: toggleWindowFullscreen
+            toggleWindowFullscreen: toggleWindowFullscreen,
+            windowIdFromWindow: windowIdFromWindow,
+            outputIdFromWindow: outputIdFromWindow,
+            workspaceIndexFromWindow: workspaceIndexFromWindow,
+            classifyWindow: classifyWindow
         };
     }
