@@ -210,6 +210,285 @@
         };
     }
 
+    function cloneColumn(column) {
+        var weights = {};
+        var key;
+        for (key in column.heightWeights) {
+            if (hasOwn(column.heightWeights, key)) {
+                weights[key] = column.heightWeights[key];
+            }
+        }
+        return {
+            id: column.id,
+            width: column.width,
+            widthFixed: column.widthFixed,
+            fullWidth: column.fullWidth,
+            restoreWidth: column.restoreWidth,
+            restoreWidthFixed: column.restoreWidthFixed,
+            windows: column.windows.slice(0),
+            focusWindow: column.focusWindow,
+            presetWidthIndex: column.presetWidthIndex,
+            tabbed: column.tabbed,
+            heightWeights: weights
+        };
+    }
+
+    function getExistingWorkspace(state, location) {
+        var output = state.outputs[location.outputId];
+        if (!output || !output.workspaces[location.workspaceIndex]) {
+            return null;
+        }
+        return output.workspaces[location.workspaceIndex];
+    }
+
+    function focusedWindowId(workspace) {
+        var column;
+        if (!workspace || workspace.columns.length === 0) {
+            return null;
+        }
+        column = workspace.columns[Math.max(0, Math.min(workspace.focusColumn, workspace.columns.length - 1))];
+        if (!column || column.windows.length === 0) {
+            return null;
+        }
+        return column.windows[Math.max(0, Math.min(column.focusWindow, column.windows.length - 1))] || null;
+    }
+
+    function updateLastTiledWindow(state, workspace) {
+        var next = focusedWindowId(workspace);
+        if (next && state.lastTiledWindowId !== next) {
+            state.previousTiledWindowId = state.lastTiledWindowId;
+            state.lastTiledWindowId = next;
+        } else if (!next) {
+            state.lastTiledWindowId = null;
+        }
+        return next;
+    }
+
+    function rebuildWorkspaceIndex(state, outputId, workspaceIndex, workspace) {
+        var i;
+        var j;
+        var column;
+        for (i = 0; i < workspace.columns.length; i += 1) {
+            column = workspace.columns[i];
+            for (j = 0; j < column.windows.length; j += 1) {
+                state.windowIndex[column.windows[j]] = createLocation(outputId, workspaceIndex, i, j);
+            }
+        }
+    }
+
+    function removeFromStateBags(state, windowId) {
+        delete state.floating[windowId];
+        delete state.manualFloating[windowId];
+        delete state.manualTiled[windowId];
+        delete state.ruleFloating[windowId];
+        delete state.fullscreen[windowId];
+    }
+
+    function removeWindowFromModel(state, windowId, keepParked) {
+        var id = String(windowId || "");
+        var location = state.windowIndex[id];
+        var workspace;
+        var column;
+        var removedFocusedColumn;
+        var preferredFocus;
+        var nextFocus;
+
+        if (id === "" || !location) {
+            return null;
+        }
+
+        workspace = getExistingWorkspace(state, location);
+        if (!workspace || !workspace.columns[location.columnIndex]) {
+            delete state.windowIndex[id];
+            if (!keepParked) {
+                delete state.parked[id];
+                removeFromStateBags(state, id);
+            }
+            return null;
+        }
+
+        column = workspace.columns[location.columnIndex];
+        if (column.windows[location.windowIndex] !== id) {
+            location.windowIndex = column.windows.indexOf(id);
+        }
+        if (location.windowIndex < 0) {
+            delete state.windowIndex[id];
+            if (!keepParked) {
+                delete state.parked[id];
+                removeFromStateBags(state, id);
+            }
+            return null;
+        }
+
+        removedFocusedColumn = workspace.focusColumn === location.columnIndex;
+        column.windows.splice(location.windowIndex, 1);
+        delete state.windowIndex[id];
+
+        if (column.windows.length === 0) {
+            workspace.columns.splice(location.columnIndex, 1);
+            if (workspace.columns.length === 0) {
+                workspace.focusColumn = 0;
+            } else if (removedFocusedColumn && workspace.prevColumnOnRemoval >= 0) {
+                preferredFocus = workspace.prevColumnOnRemoval;
+                if (preferredFocus > location.columnIndex) {
+                    preferredFocus -= 1;
+                }
+                workspace.focusColumn = Math.max(0, Math.min(preferredFocus, workspace.columns.length - 1));
+            } else {
+                nextFocus = removedFocusedColumn ? location.columnIndex : workspace.focusColumn;
+                if (workspace.focusColumn > location.columnIndex) {
+                    nextFocus = workspace.focusColumn - 1;
+                }
+                workspace.focusColumn = Math.max(0, Math.min(nextFocus, workspace.columns.length - 1));
+            }
+            workspace.prevColumnOnRemoval = -1;
+        } else {
+            if (column.focusWindow > location.windowIndex) {
+                column.focusWindow -= 1;
+            } else if (column.focusWindow >= column.windows.length) {
+                column.focusWindow = column.windows.length - 1;
+            }
+            workspace.focusColumn = Math.max(0, Math.min(workspace.focusColumn, workspace.columns.length - 1));
+        }
+
+        rebuildWorkspaceIndex(state, location.outputId, location.workspaceIndex, workspace);
+        updateLastTiledWindow(state, workspace);
+
+        if (!keepParked) {
+            delete state.parked[id];
+            removeFromStateBags(state, id);
+        }
+
+        return location;
+    }
+
+    function addWindow(state, outputId, workspaceIndex, windowId, options) {
+        var id = String(windowId || "");
+        var workspace;
+        var insertIndex;
+        var previousFocus;
+        var column;
+
+        if (id === "") {
+            return null;
+        }
+        if (state.windowIndex[id]) {
+            return state.windowIndex[id];
+        }
+
+        workspace = ensureWorkspace(state, outputId, workspaceIndex);
+        previousFocus = workspace.columns.length === 0 ? -1 : Math.max(0, Math.min(workspace.focusColumn, workspace.columns.length - 1));
+        insertIndex = workspace.columns.length === 0 ? 0 : previousFocus + 1;
+        column = createColumn(state, id, options);
+
+        workspace.columns.splice(insertIndex, 0, column);
+        workspace.prevFocusColumn = previousFocus;
+        workspace.prevColumnOnRemoval = previousFocus;
+        workspace.focusColumn = insertIndex;
+        delete state.parked[id];
+
+        rebuildWorkspaceIndex(state, String(outputId || "default"), normalizeWorkspaceIndex(workspaceIndex), workspace);
+        updateLastTiledWindow(state, workspace);
+
+        return state.windowIndex[id];
+    }
+
+    function removeWindow(state, windowId) {
+        return removeWindowFromModel(state, windowId, false);
+    }
+
+    function parkWindow(state, windowId, reason) {
+        var id = String(windowId || "");
+        var location = state.windowIndex[id];
+        var workspace;
+        var column;
+
+        if (id === "") {
+            return null;
+        }
+        if (!location) {
+            return state.parked[id] || null;
+        }
+
+        workspace = getExistingWorkspace(state, location);
+        if (!workspace || !workspace.columns[location.columnIndex]) {
+            return null;
+        }
+        column = workspace.columns[location.columnIndex];
+        state.parked[id] = {
+            reason: reason ? String(reason) : "parked",
+            outputId: location.outputId,
+            workspaceIndex: location.workspaceIndex,
+            columnIndex: location.columnIndex,
+            windowIndex: location.windowIndex,
+            column: cloneColumn(column)
+        };
+
+        removeWindowFromModel(state, id, true);
+        return state.parked[id];
+    }
+
+    function findColumnIndexById(workspace, columnId) {
+        var i;
+        for (i = 0; i < workspace.columns.length; i += 1) {
+            if (workspace.columns[i].id === columnId) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    function restoreWindow(state, windowId) {
+        var id = String(windowId || "");
+        var placement = state.parked[id];
+        var workspace;
+        var columnIndex;
+        var column;
+        var insertIndex;
+        var weight;
+
+        if (id === "") {
+            return null;
+        }
+        if (state.windowIndex[id]) {
+            delete state.parked[id];
+            return state.windowIndex[id];
+        }
+        if (!placement) {
+            return null;
+        }
+
+        workspace = ensureWorkspace(state, placement.outputId, placement.workspaceIndex);
+        columnIndex = findColumnIndexById(workspace, placement.column.id);
+        if (columnIndex >= 0) {
+            column = workspace.columns[columnIndex];
+            insertIndex = Math.max(0, Math.min(placement.windowIndex, column.windows.length));
+            column.windows.splice(insertIndex, 0, id);
+            column.focusWindow = insertIndex;
+        } else {
+            column = cloneColumn(placement.column);
+            weight = column.heightWeights[id];
+            column.windows = [id];
+            column.focusWindow = 0;
+            column.heightWeights = {};
+            if (weight !== undefined) {
+                column.heightWeights[id] = weight;
+            }
+            columnIndex = Math.max(0, Math.min(placement.columnIndex, workspace.columns.length));
+            workspace.columns.splice(columnIndex, 0, column);
+        }
+
+        workspace.focusColumn = columnIndex;
+        workspace.prevFocusColumn = -1;
+        workspace.prevColumnOnRemoval = -1;
+        delete state.parked[id];
+
+        rebuildWorkspaceIndex(state, placement.outputId, placement.workspaceIndex, workspace);
+        updateLastTiledWindow(state, workspace);
+
+        return state.windowIndex[id];
+    }
+
     function createState(options) {
         return {
             options: copyOptions(options),
@@ -241,6 +520,10 @@
             ensureWorkspace: ensureWorkspace,
             getWorkspace: getWorkspace,
             createColumn: createColumn,
-            createLocation: createLocation
+            createLocation: createLocation,
+            addWindow: addWindow,
+            removeWindow: removeWindow,
+            parkWindow: parkWindow,
+            restoreWindow: restoreWindow
         };
     }

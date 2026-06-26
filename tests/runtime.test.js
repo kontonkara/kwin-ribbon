@@ -134,3 +134,79 @@ assert.deepEqual(plain(api.createLocation("HDMI-A-1", "2", "4", "1")), {
   columnIndex: 4,
   windowIndex: 1
 });
+
+const windows = api.createState({ defaultColumnWidth: 0.5 });
+
+assert.deepEqual(plain(api.addWindow(windows, "screen-1", 0, "alpha", { width: 0.25 })), {
+  outputId: "screen-1",
+  workspaceIndex: 0,
+  columnIndex: 0,
+  windowIndex: 0
+});
+api.addWindow(windows, "screen-1", 0, "beta", { width: 0.75 });
+api.addWindow(windows, "screen-1", 0, "gamma");
+api.addWindow(windows, "screen-1", 0, "beta");
+
+const windowWorkspace = api.getWorkspace(windows, "screen-1", 0);
+
+assert.deepEqual(plain(windowWorkspace.columns.map((column) => column.windows)), [
+  ["alpha"],
+  ["beta"],
+  ["gamma"]
+]);
+assert.deepEqual(plain(windowWorkspace.columns.map((column) => column.width)), [0.25, 0.75, 0.5]);
+assert.equal(windowWorkspace.focusColumn, 2);
+assert.equal(windowWorkspace.prevColumnOnRemoval, 1);
+assert.equal(windows.lastTiledWindowId, "gamma");
+assert.equal(windows.previousTiledWindowId, "beta");
+
+api.removeWindow(windows, "gamma");
+
+assert.deepEqual(plain(windowWorkspace.columns.map((column) => column.windows)), [
+  ["alpha"],
+  ["beta"]
+]);
+assert.equal(windowWorkspace.focusColumn, 1);
+assert.equal(windowWorkspace.prevColumnOnRemoval, -1);
+assert.equal(windows.lastTiledWindowId, "beta");
+assert.equal(windows.previousTiledWindowId, "gamma");
+assert.equal(windows.windowIndex.gamma, undefined);
+
+assert.deepEqual(plain(api.parkWindow(windows, "beta", "minimized")), {
+  reason: "minimized",
+  outputId: "screen-1",
+  workspaceIndex: 0,
+  columnIndex: 1,
+  windowIndex: 0,
+  column: {
+    id: "column-2",
+    width: 0.75,
+    widthFixed: false,
+    fullWidth: false,
+    restoreWidth: null,
+    restoreWidthFixed: null,
+    windows: ["beta"],
+    focusWindow: 0,
+    presetWidthIndex: -1,
+    tabbed: false,
+    heightWeights: {}
+  }
+});
+assert.deepEqual(plain(windowWorkspace.columns.map((column) => column.windows)), [["alpha"]]);
+assert.equal(windows.windowIndex.beta, undefined);
+assert.equal(windowWorkspace.focusColumn, 0);
+
+assert.deepEqual(plain(api.restoreWindow(windows, "beta")), {
+  outputId: "screen-1",
+  workspaceIndex: 0,
+  columnIndex: 1,
+  windowIndex: 0
+});
+assert.deepEqual(plain(windowWorkspace.columns.map((column) => column.windows)), [
+  ["alpha"],
+  ["beta"]
+]);
+assert.equal(windowWorkspace.columns[1].id, "column-2");
+assert.equal(windowWorkspace.focusColumn, 1);
+assert.equal(windows.parked.beta, undefined);
+assert.equal(windows.lastTiledWindowId, "beta");
