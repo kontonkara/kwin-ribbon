@@ -446,7 +446,13 @@
     }
 
     function removeWindow(state, windowId) {
-        return removeWindowFromModel(state, windowId, false);
+        var id = String(windowId || "");
+        var location = removeWindowFromModel(state, id, false);
+        if (!location && id !== "") {
+            delete state.parked[id];
+            removeFromStateBags(state, id);
+        }
+        return location;
     }
 
     function parkWindow(state, windowId, reason) {
@@ -1464,6 +1470,113 @@
         return target;
     }
 
+    function validWindowId(windowId) {
+        return String(windowId || "");
+    }
+
+    function setFloatingState(state, windowId, enabled) {
+        if (enabled) {
+            state.floating[windowId] = true;
+            state.lastFloatingWindowId = windowId;
+        } else {
+            delete state.floating[windowId];
+        }
+    }
+
+    function setWindowFloating(state, windowId, enabled) {
+        var id = validWindowId(windowId);
+        if (id === "") {
+            return null;
+        }
+        enabled = enabled !== false;
+        if (enabled) {
+            if (state.fullscreen[id]) {
+                setWindowFullscreen(state, id, false);
+            }
+            if (state.windowIndex[id]) {
+                parkWindow(state, id, "floating");
+            }
+            setFloatingState(state, id, true);
+            state.manualFloating[id] = true;
+            delete state.manualTiled[id];
+            return state.parked[id] || true;
+        }
+        delete state.manualFloating[id];
+        state.manualTiled[id] = true;
+        if (!state.ruleFloating[id]) {
+            setFloatingState(state, id, false);
+            if (!state.fullscreen[id] && state.parked[id]) {
+                return restoreWindow(state, id);
+            }
+        }
+        return state.windowIndex[id] || state.parked[id] || true;
+    }
+
+    function toggleWindowFloating(state, windowId) {
+        var id = validWindowId(windowId);
+        if (id === "") {
+            return null;
+        }
+        return setWindowFloating(state, id, !state.floating[id]);
+    }
+
+    function setRuleFloating(state, windowId, enabled) {
+        var id = validWindowId(windowId);
+        if (id === "") {
+            return null;
+        }
+        enabled = enabled !== false;
+        if (enabled) {
+            if (state.windowIndex[id]) {
+                parkWindow(state, id, "rule-floating");
+            }
+            state.ruleFloating[id] = true;
+            setFloatingState(state, id, true);
+            return state.parked[id] || true;
+        }
+        delete state.ruleFloating[id];
+        if (!state.manualFloating[id]) {
+            setFloatingState(state, id, false);
+            if (!state.fullscreen[id] && state.parked[id]) {
+                return restoreWindow(state, id);
+            }
+        }
+        return state.windowIndex[id] || state.parked[id] || true;
+    }
+
+    function setWindowFullscreen(state, windowId, enabled) {
+        var id = validWindowId(windowId);
+        if (id === "") {
+            return null;
+        }
+        enabled = enabled !== false;
+        if (enabled) {
+            if (state.windowIndex[id]) {
+                parkWindow(state, id, "fullscreen");
+            }
+            state.fullscreen[id] = true;
+            setFloatingState(state, id, false);
+            return state.parked[id] || true;
+        }
+        delete state.fullscreen[id];
+        if (state.manualFloating[id] || state.ruleFloating[id]) {
+            setFloatingState(state, id, true);
+            return state.parked[id] || true;
+        }
+        if (state.parked[id]) {
+            return restoreWindow(state, id);
+        }
+        return state.windowIndex[id] || true;
+    }
+
+    function toggleWindowFullscreen(state, windowId) {
+        var id = validWindowId(windowId);
+        if (id === "") {
+            return null;
+        }
+        return setWindowFullscreen(state, id, !state.fullscreen[id]);
+    }
+
     function createState(options) {
         return {
             options: copyOptions(options),
@@ -1548,7 +1661,12 @@
             fitFocusedColumnIntoViewport: fitFocusedColumnIntoViewport,
             centerFocusedColumnInViewport: centerFocusedColumnInViewport,
             updateScrollOffsetForFocus: updateScrollOffsetForFocus,
-            centerVisibleColumns: centerVisibleColumns
+            centerVisibleColumns: centerVisibleColumns,
+            setWindowFloating: setWindowFloating,
+            toggleWindowFloating: toggleWindowFloating,
+            setRuleFloating: setRuleFloating,
+            setWindowFullscreen: setWindowFullscreen,
+            toggleWindowFullscreen: toggleWindowFullscreen
         };
     }
 

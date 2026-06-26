@@ -613,6 +613,87 @@ assert.deepEqual(plain(swapColumnWorkspace.columns.map((column) => column.window
 ]);
 assert.equal(swapColumnWorkspace.focusColumn, 0);
 
+const floatingState = api.createState();
+api.addWindow(floatingState, "screen-1", 0, "tile");
+const floatingWorkspace = api.getWorkspace(floatingState, "screen-1", 0);
+
+api.setWindowFloating(floatingState, "tile", true);
+assert.equal(floatingState.windowIndex.tile, undefined);
+assert.equal(floatingWorkspace.columns.length, 0);
+assert.equal(floatingState.floating.tile, true);
+assert.equal(floatingState.manualFloating.tile, true);
+assert.equal(floatingState.manualTiled.tile, undefined);
+assert.equal(floatingState.lastFloatingWindowId, "tile");
+assert.equal(floatingState.parked.tile.reason, "floating");
+
+api.setWindowFloating(floatingState, "tile", false);
+assert.deepEqual(plain(floatingState.windowIndex.tile), {
+  outputId: "screen-1",
+  workspaceIndex: 0,
+  columnIndex: 0,
+  windowIndex: 0
+});
+assert.equal(floatingState.floating.tile, undefined);
+assert.equal(floatingState.manualFloating.tile, undefined);
+assert.equal(floatingState.manualTiled.tile, true);
+assert.equal(floatingState.parked.tile, undefined);
+
+api.setWindowFloating(floatingState, "tile", true);
+api.setRuleFloating(floatingState, "tile", true);
+api.setRuleFloating(floatingState, "tile", false);
+assert.equal(floatingState.floating.tile, true);
+assert.equal(floatingState.manualFloating.tile, true);
+assert.equal(floatingState.parked.tile.reason, "floating");
+api.setWindowFloating(floatingState, "tile", false);
+assert.equal(floatingState.windowIndex.tile.windowIndex, 0);
+assert.equal(floatingState.floating.tile, undefined);
+
+const ruleState = api.createState();
+api.addWindow(ruleState, "screen-1", 0, "rule");
+api.setRuleFloating(ruleState, "rule", true);
+assert.equal(ruleState.windowIndex.rule, undefined);
+assert.equal(ruleState.ruleFloating.rule, true);
+assert.equal(ruleState.floating.rule, true);
+api.setRuleFloating(ruleState, "rule", false);
+assert.equal(ruleState.ruleFloating.rule, undefined);
+assert.equal(ruleState.floating.rule, undefined);
+assert.equal(ruleState.windowIndex.rule.windowIndex, 0);
+
+const fullscreenState = api.createState();
+api.addWindow(fullscreenState, "screen-1", 0, "full");
+api.setWindowFullscreen(fullscreenState, "full", true);
+assert.equal(fullscreenState.windowIndex.full, undefined);
+assert.equal(fullscreenState.fullscreen.full, true);
+assert.equal(fullscreenState.floating.full, undefined);
+assert.equal(fullscreenState.parked.full.reason, "fullscreen");
+api.setWindowFullscreen(fullscreenState, "full", false);
+assert.equal(fullscreenState.fullscreen.full, undefined);
+assert.deepEqual(plain(fullscreenState.windowIndex.full), {
+  outputId: "screen-1",
+  workspaceIndex: 0,
+  columnIndex: 0,
+  windowIndex: 0
+});
+
+const transitionState = api.createState();
+api.addWindow(transitionState, "screen-1", 0, "transition");
+api.setWindowFullscreen(transitionState, "transition", true);
+api.setWindowFloating(transitionState, "transition", true);
+assert.equal(transitionState.fullscreen.transition, undefined);
+assert.equal(transitionState.floating.transition, true);
+assert.equal(transitionState.manualFloating.transition, true);
+assert.equal(transitionState.windowIndex.transition, undefined);
+assert.equal(transitionState.parked.transition.reason, "floating");
+
+api.removeWindow(transitionState, "transition");
+assert.equal(transitionState.parked.transition, undefined);
+assert.equal(transitionState.floating.transition, undefined);
+assert.equal(transitionState.manualFloating.transition, undefined);
+assert.equal(transitionState.fullscreen.transition, undefined);
+
+assert.equal(api.toggleWindowFloating(transitionState, ""), null);
+assert.equal(api.toggleWindowFullscreen(transitionState, ""), null);
+
 const scrollState = api.createState({ gaps: 10, centerFocusedColumn: "never" });
 const scrollWorkspace = api.ensureWorkspace(scrollState, "screen-1", 0);
 scrollWorkspace.columns.push(
