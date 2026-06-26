@@ -498,6 +498,210 @@
         return state.windowIndex[id];
     }
 
+    function clampIndex(index, length) {
+        if (length <= 0) {
+            return -1;
+        }
+        return Math.max(0, Math.min(parseInt(index, 10) || 0, length - 1));
+    }
+
+    function focusedLocation(state, workspace) {
+        var id = focusedWindowId(workspace);
+        return id ? state.windowIndex[id] || null : null;
+    }
+
+    function focusColumnAt(state, outputId, workspaceIndex, targetIndex) {
+        var workspace = getWorkspace(state, outputId, workspaceIndex);
+        var previousFocus;
+        var nextFocus;
+        var column;
+
+        if (workspace.columns.length === 0) {
+            return null;
+        }
+
+        previousFocus = clampIndex(workspace.focusColumn, workspace.columns.length);
+        nextFocus = clampIndex(targetIndex, workspace.columns.length);
+        if (nextFocus !== previousFocus) {
+            workspace.prevFocusColumn = previousFocus;
+            workspace.prevColumnOnRemoval = -1;
+        }
+        workspace.focusColumn = nextFocus;
+        column = workspace.columns[nextFocus];
+        column.focusWindow = clampIndex(column.focusWindow, column.windows.length);
+        updateLastTiledWindow(state, workspace);
+        return focusedLocation(state, workspace);
+    }
+
+    function focusColumnLeft(state, outputId, workspaceIndex) {
+        var workspace = getWorkspace(state, outputId, workspaceIndex);
+        return focusColumnAt(state, outputId, workspaceIndex, workspace.focusColumn - 1);
+    }
+
+    function focusColumnRight(state, outputId, workspaceIndex) {
+        var workspace = getWorkspace(state, outputId, workspaceIndex);
+        return focusColumnAt(state, outputId, workspaceIndex, workspace.focusColumn + 1);
+    }
+
+    function focusFirstColumn(state, outputId, workspaceIndex) {
+        return focusColumnAt(state, outputId, workspaceIndex, 0);
+    }
+
+    function focusLastColumn(state, outputId, workspaceIndex) {
+        var workspace = getWorkspace(state, outputId, workspaceIndex);
+        return focusColumnAt(state, outputId, workspaceIndex, workspace.columns.length - 1);
+    }
+
+    function focusColumnByIndex(state, outputId, workspaceIndex, index) {
+        return focusColumnAt(state, outputId, workspaceIndex, (parseInt(index, 10) || 1) - 1);
+    }
+
+    function focusWindowAt(state, outputId, workspaceIndex, targetIndex) {
+        var workspace = getWorkspace(state, outputId, workspaceIndex);
+        var column;
+
+        if (workspace.columns.length === 0) {
+            return null;
+        }
+        workspace.focusColumn = clampIndex(workspace.focusColumn, workspace.columns.length);
+        column = workspace.columns[workspace.focusColumn];
+        if (!column || column.windows.length === 0) {
+            return null;
+        }
+        column.focusWindow = clampIndex(targetIndex, column.windows.length);
+        updateLastTiledWindow(state, workspace);
+        return focusedLocation(state, workspace);
+    }
+
+    function focusWindowUp(state, outputId, workspaceIndex) {
+        var workspace = getWorkspace(state, outputId, workspaceIndex);
+        var column = workspace.columns[clampIndex(workspace.focusColumn, workspace.columns.length)];
+        return column ? focusWindowAt(state, outputId, workspaceIndex, column.focusWindow - 1) : null;
+    }
+
+    function focusWindowDown(state, outputId, workspaceIndex) {
+        var workspace = getWorkspace(state, outputId, workspaceIndex);
+        var column = workspace.columns[clampIndex(workspace.focusColumn, workspace.columns.length)];
+        return column ? focusWindowAt(state, outputId, workspaceIndex, column.focusWindow + 1) : null;
+    }
+
+    function focusTopWindow(state, outputId, workspaceIndex) {
+        return focusWindowAt(state, outputId, workspaceIndex, 0);
+    }
+
+    function focusBottomWindow(state, outputId, workspaceIndex) {
+        var workspace = getWorkspace(state, outputId, workspaceIndex);
+        var column = workspace.columns[clampIndex(workspace.focusColumn, workspace.columns.length)];
+        return column ? focusWindowAt(state, outputId, workspaceIndex, column.windows.length - 1) : null;
+    }
+
+    function focusWindowByIndex(state, outputId, workspaceIndex, index) {
+        return focusWindowAt(state, outputId, workspaceIndex, (parseInt(index, 10) || 1) - 1);
+    }
+
+    function moveArrayItem(items, fromIndex, toIndex) {
+        var item;
+        if (fromIndex === toIndex) {
+            return items[fromIndex];
+        }
+        item = items.splice(fromIndex, 1)[0];
+        items.splice(toIndex, 0, item);
+        return item;
+    }
+
+    function moveColumnToIndex(state, outputId, workspaceIndex, targetIndex) {
+        var workspace = getWorkspace(state, outputId, workspaceIndex);
+        var fromIndex;
+        var toIndex;
+
+        if (workspace.columns.length <= 1) {
+            return focusedLocation(state, workspace);
+        }
+        fromIndex = clampIndex(workspace.focusColumn, workspace.columns.length);
+        toIndex = clampIndex(targetIndex, workspace.columns.length);
+        if (toIndex === fromIndex) {
+            return focusedLocation(state, workspace);
+        }
+        moveArrayItem(workspace.columns, fromIndex, toIndex);
+        workspace.prevFocusColumn = fromIndex;
+        workspace.prevColumnOnRemoval = -1;
+        workspace.focusColumn = toIndex;
+        rebuildWorkspaceIndex(state, String(outputId || "default"), normalizeWorkspaceIndex(workspaceIndex), workspace);
+        updateLastTiledWindow(state, workspace);
+        return focusedLocation(state, workspace);
+    }
+
+    function moveColumnLeft(state, outputId, workspaceIndex) {
+        var workspace = getWorkspace(state, outputId, workspaceIndex);
+        return moveColumnToIndex(state, outputId, workspaceIndex, workspace.focusColumn - 1);
+    }
+
+    function moveColumnRight(state, outputId, workspaceIndex) {
+        var workspace = getWorkspace(state, outputId, workspaceIndex);
+        return moveColumnToIndex(state, outputId, workspaceIndex, workspace.focusColumn + 1);
+    }
+
+    function moveColumnFirst(state, outputId, workspaceIndex) {
+        return moveColumnToIndex(state, outputId, workspaceIndex, 0);
+    }
+
+    function moveColumnLast(state, outputId, workspaceIndex) {
+        var workspace = getWorkspace(state, outputId, workspaceIndex);
+        return moveColumnToIndex(state, outputId, workspaceIndex, workspace.columns.length - 1);
+    }
+
+    function moveColumnByIndex(state, outputId, workspaceIndex, index) {
+        return moveColumnToIndex(state, outputId, workspaceIndex, (parseInt(index, 10) || 1) - 1);
+    }
+
+    function moveWindowToIndex(state, outputId, workspaceIndex, targetIndex) {
+        var workspace = getWorkspace(state, outputId, workspaceIndex);
+        var column;
+        var fromIndex;
+        var toIndex;
+
+        if (workspace.columns.length === 0) {
+            return null;
+        }
+        workspace.focusColumn = clampIndex(workspace.focusColumn, workspace.columns.length);
+        column = workspace.columns[workspace.focusColumn];
+        if (!column || column.windows.length <= 1) {
+            return focusedLocation(state, workspace);
+        }
+        fromIndex = clampIndex(column.focusWindow, column.windows.length);
+        toIndex = clampIndex(targetIndex, column.windows.length);
+        if (toIndex === fromIndex) {
+            return focusedLocation(state, workspace);
+        }
+        moveArrayItem(column.windows, fromIndex, toIndex);
+        column.focusWindow = toIndex;
+        rebuildWorkspaceIndex(state, String(outputId || "default"), normalizeWorkspaceIndex(workspaceIndex), workspace);
+        updateLastTiledWindow(state, workspace);
+        return focusedLocation(state, workspace);
+    }
+
+    function moveWindowUp(state, outputId, workspaceIndex) {
+        var workspace = getWorkspace(state, outputId, workspaceIndex);
+        var column = workspace.columns[clampIndex(workspace.focusColumn, workspace.columns.length)];
+        return column ? moveWindowToIndex(state, outputId, workspaceIndex, column.focusWindow - 1) : null;
+    }
+
+    function moveWindowDown(state, outputId, workspaceIndex) {
+        var workspace = getWorkspace(state, outputId, workspaceIndex);
+        var column = workspace.columns[clampIndex(workspace.focusColumn, workspace.columns.length)];
+        return column ? moveWindowToIndex(state, outputId, workspaceIndex, column.focusWindow + 1) : null;
+    }
+
+    function moveWindowTop(state, outputId, workspaceIndex) {
+        return moveWindowToIndex(state, outputId, workspaceIndex, 0);
+    }
+
+    function moveWindowBottom(state, outputId, workspaceIndex) {
+        var workspace = getWorkspace(state, outputId, workspaceIndex);
+        var column = workspace.columns[clampIndex(workspace.focusColumn, workspace.columns.length)];
+        return column ? moveWindowToIndex(state, outputId, workspaceIndex, column.windows.length - 1) : null;
+    }
+
     function createState(options) {
         return {
             options: copyOptions(options),
@@ -533,7 +737,26 @@
             addWindow: addWindow,
             removeWindow: removeWindow,
             parkWindow: parkWindow,
-            restoreWindow: restoreWindow
+            restoreWindow: restoreWindow,
+            focusColumnLeft: focusColumnLeft,
+            focusColumnRight: focusColumnRight,
+            focusFirstColumn: focusFirstColumn,
+            focusLastColumn: focusLastColumn,
+            focusColumnByIndex: focusColumnByIndex,
+            focusWindowUp: focusWindowUp,
+            focusWindowDown: focusWindowDown,
+            focusTopWindow: focusTopWindow,
+            focusBottomWindow: focusBottomWindow,
+            focusWindowByIndex: focusWindowByIndex,
+            moveColumnLeft: moveColumnLeft,
+            moveColumnRight: moveColumnRight,
+            moveColumnFirst: moveColumnFirst,
+            moveColumnLast: moveColumnLast,
+            moveColumnByIndex: moveColumnByIndex,
+            moveWindowUp: moveWindowUp,
+            moveWindowDown: moveWindowDown,
+            moveWindowTop: moveWindowTop,
+            moveWindowBottom: moveWindowBottom
         };
     }
 

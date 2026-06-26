@@ -210,3 +210,124 @@ assert.equal(windowWorkspace.columns[1].id, "column-2");
 assert.equal(windowWorkspace.focusColumn, 1);
 assert.equal(windows.parked.beta, undefined);
 assert.equal(windows.lastTiledWindowId, "beta");
+
+const columns = api.createState();
+api.addWindow(columns, "screen-1", 0, "one");
+api.addWindow(columns, "screen-1", 0, "two");
+api.addWindow(columns, "screen-1", 0, "three");
+
+const columnWorkspace = api.getWorkspace(columns, "screen-1", 0);
+
+assert.deepEqual(plain(api.focusColumnLeft(columns, "screen-1", 0)), {
+  outputId: "screen-1",
+  workspaceIndex: 0,
+  columnIndex: 1,
+  windowIndex: 0
+});
+assert.deepEqual(plain(columnWorkspace.columns.map((column) => column.windows)), [
+  ["one"],
+  ["two"],
+  ["three"]
+]);
+assert.equal(columnWorkspace.prevColumnOnRemoval, -1);
+assert.equal(columns.lastTiledWindowId, "two");
+
+api.focusColumnRight(columns, "screen-1", 0);
+api.focusFirstColumn(columns, "screen-1", 0);
+assert.equal(columns.lastTiledWindowId, "one");
+api.focusLastColumn(columns, "screen-1", 0);
+assert.equal(columns.lastTiledWindowId, "three");
+api.focusColumnByIndex(columns, "screen-1", 0, 2);
+assert.equal(columns.lastTiledWindowId, "two");
+
+assert.deepEqual(plain(api.moveColumnLeft(columns, "screen-1", 0)), {
+  outputId: "screen-1",
+  workspaceIndex: 0,
+  columnIndex: 0,
+  windowIndex: 0
+});
+assert.deepEqual(plain(columnWorkspace.columns.map((column) => column.windows)), [
+  ["two"],
+  ["one"],
+  ["three"]
+]);
+assert.equal(columnWorkspace.focusColumn, 0);
+
+api.moveColumnLast(columns, "screen-1", 0);
+assert.deepEqual(plain(columnWorkspace.columns.map((column) => column.windows)), [
+  ["one"],
+  ["three"],
+  ["two"]
+]);
+assert.equal(columnWorkspace.focusColumn, 2);
+assert.deepEqual(plain(columns.windowIndex.two), {
+  outputId: "screen-1",
+  workspaceIndex: 0,
+  columnIndex: 2,
+  windowIndex: 0
+});
+
+api.moveColumnByIndex(columns, "screen-1", 0, 1);
+assert.deepEqual(plain(columnWorkspace.columns.map((column) => column.windows)), [
+  ["two"],
+  ["one"],
+  ["three"]
+]);
+assert.equal(columnWorkspace.focusColumn, 0);
+const previousColumnFocusHint = columnWorkspace.prevFocusColumn;
+api.moveColumnLeft(columns, "screen-1", 0);
+assert.deepEqual(plain(columnWorkspace.columns.map((column) => column.windows)), [
+  ["two"],
+  ["one"],
+  ["three"]
+]);
+assert.equal(columnWorkspace.prevFocusColumn, previousColumnFocusHint);
+
+const stack = api.createState();
+const stackWorkspace = api.ensureWorkspace(stack, "screen-1", 0);
+const stackColumn = api.createColumn(stack, ["top", "middle", "bottom"]);
+stackColumn.heightWeights = { top: 1, middle: 2, bottom: 3 };
+stackWorkspace.columns.push(stackColumn);
+stack.windowIndex.top = api.createLocation("screen-1", 0, 0, 0);
+stack.windowIndex.middle = api.createLocation("screen-1", 0, 0, 1);
+stack.windowIndex.bottom = api.createLocation("screen-1", 0, 0, 2);
+
+assert.deepEqual(plain(api.focusWindowDown(stack, "screen-1", 0)), {
+  outputId: "screen-1",
+  workspaceIndex: 0,
+  columnIndex: 0,
+  windowIndex: 1
+});
+assert.equal(stack.lastTiledWindowId, "middle");
+api.focusWindowByIndex(stack, "screen-1", 0, 3);
+assert.equal(stack.lastTiledWindowId, "bottom");
+api.focusTopWindow(stack, "screen-1", 0);
+assert.equal(stack.lastTiledWindowId, "top");
+api.focusBottomWindow(stack, "screen-1", 0);
+assert.equal(stack.lastTiledWindowId, "bottom");
+api.focusWindowByIndex(stack, "screen-1", 0, 2);
+
+assert.deepEqual(plain(api.moveWindowUp(stack, "screen-1", 0)), {
+  outputId: "screen-1",
+  workspaceIndex: 0,
+  columnIndex: 0,
+  windowIndex: 0
+});
+assert.deepEqual(plain(stackColumn.windows), ["middle", "top", "bottom"]);
+assert.deepEqual(plain(stackColumn.heightWeights), { top: 1, middle: 2, bottom: 3 });
+
+api.moveWindowBottom(stack, "screen-1", 0);
+assert.deepEqual(plain(stackColumn.windows), ["top", "bottom", "middle"]);
+assert.deepEqual(plain(stack.windowIndex.middle), {
+  outputId: "screen-1",
+  workspaceIndex: 0,
+  columnIndex: 0,
+  windowIndex: 2
+});
+
+api.moveWindowTop(stack, "screen-1", 0);
+assert.deepEqual(plain(stackColumn.windows), ["middle", "top", "bottom"]);
+assert.equal(stackColumn.focusWindow, 0);
+api.moveWindowUp(stack, "screen-1", 0);
+assert.deepEqual(plain(stackColumn.windows), ["middle", "top", "bottom"]);
+assert.equal(stackColumn.focusWindow, 0);
