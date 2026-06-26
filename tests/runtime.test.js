@@ -211,6 +211,16 @@ assert.equal(windowWorkspace.focusColumn, 1);
 assert.equal(windows.parked.beta, undefined);
 assert.equal(windows.lastTiledWindowId, "beta");
 
+const keyedState = api.createState();
+api.addWindow(keyedState, "screen-1", 0, "__proto__");
+api.addWindow(keyedState, "screen-1", 0, "constructor");
+assert.equal(keyedState.windowIndex["__proto__"].windowIndex, 0);
+assert.equal(keyedState.windowIndex.constructor.windowIndex, 0);
+assert.deepEqual(plain(api.getWorkspace(keyedState, "screen-1", 0).columns.map((column) => column.windows)), [
+  ["__proto__"],
+  ["constructor"]
+]);
+
 const columns = api.createState();
 api.addWindow(columns, "screen-1", 0, "one");
 api.addWindow(columns, "screen-1", 0, "two");
@@ -658,6 +668,15 @@ api.setRuleFloating(ruleState, "rule", false);
 assert.equal(ruleState.ruleFloating.rule, undefined);
 assert.equal(ruleState.floating.rule, undefined);
 assert.equal(ruleState.windowIndex.rule.windowIndex, 0);
+
+const ruleFullscreenState = api.createState();
+api.addWindow(ruleFullscreenState, "screen-1", 0, "rule-full");
+api.setWindowFullscreen(ruleFullscreenState, "rule-full", true);
+api.setRuleFloating(ruleFullscreenState, "rule-full", true);
+assert.equal(ruleFullscreenState.fullscreen["rule-full"], undefined);
+assert.equal(ruleFullscreenState.ruleFloating["rule-full"], true);
+assert.equal(ruleFullscreenState.floating["rule-full"], true);
+assert.equal(ruleFullscreenState.parked["rule-full"].reason, "rule-floating");
 
 const fullscreenState = api.createState();
 api.addWindow(fullscreenState, "screen-1", 0, "full");

@@ -36,6 +36,10 @@
         return Object.prototype.toString.call(value) === "[object Array]";
     }
 
+    function emptyMap() {
+        return Object.create(null);
+    }
+
     function clampRatio(value) {
         var number = parseFloat(value);
         if (!isFinite(number) || number <= 0) {
@@ -139,7 +143,7 @@
     function normalizeWindowIds(value) {
         var raw = value;
         var result = [];
-        var seen = {};
+        var seen = emptyMap();
         var i;
         var id;
 
@@ -223,7 +227,7 @@
             focusWindow: windows.length > 0 ? 0 : -1,
             presetWidthIndex: -1,
             tabbed: normalizeColumnDisplay(opts.display || state.options.defaultColumnDisplay) === "tabbed",
-            heightWeights: {}
+            heightWeights: emptyMap()
         };
     }
 
@@ -237,7 +241,7 @@
     }
 
     function cloneColumn(column) {
-        var weights = {};
+        var weights = emptyMap();
         var key;
         for (key in column.heightWeights) {
             if (hasOwn(column.heightWeights, key)) {
@@ -303,8 +307,8 @@
     }
 
     function pruneHeightWeights(column) {
-        var keep = {};
-        var next = {};
+        var keep = emptyMap();
+        var next = emptyMap();
         var i;
         var id;
 
@@ -312,7 +316,7 @@
             return;
         }
         if (column.windows.length <= 1) {
-            column.heightWeights = {};
+            column.heightWeights = emptyMap();
             return;
         }
         for (i = 0; i < column.windows.length; i += 1) {
@@ -533,7 +537,7 @@
             weight = column.heightWeights[id];
             column.windows = [id];
             column.focusWindow = 0;
-            column.heightWeights = {};
+            column.heightWeights = emptyMap();
             if (weight !== undefined) {
                 column.heightWeights[id] = weight;
             }
@@ -800,7 +804,7 @@
             return null;
         }
         if (ref.column.windows.length <= 1) {
-            ref.column.heightWeights = {};
+            ref.column.heightWeights = emptyMap();
             return focusedLocation(state, ref.workspace);
         }
         ref.column.heightWeights[ref.windowId] = clampHeightWeight(height);
@@ -825,7 +829,7 @@
             return null;
         }
         if (ref.column.windows.length <= 1) {
-            ref.column.heightWeights = {};
+            ref.column.heightWeights = emptyMap();
             return focusedLocation(state, ref.workspace);
         }
         index = chooseHeightPresetIndex(state, ref.column, ref.windowId, parseInt(direction, 10));
@@ -847,7 +851,7 @@
             return null;
         }
         if (ref.column.tabbed) {
-            ref.column.heightWeights = {};
+            ref.column.heightWeights = emptyMap();
         } else {
             delete ref.column.heightWeights[ref.windowId];
             pruneHeightWeights(ref.column);
@@ -860,7 +864,7 @@
         if (!ref) {
             return null;
         }
-        ref.column.heightWeights = {};
+        ref.column.heightWeights = emptyMap();
         return focusedLocation(state, ref.workspace);
     }
 
@@ -1527,6 +1531,9 @@
         }
         enabled = enabled !== false;
         if (enabled) {
+            if (state.fullscreen[id]) {
+                setWindowFullscreen(state, id, false);
+            }
             if (state.windowIndex[id]) {
                 parkWindow(state, id, "rule-floating");
             }
@@ -1580,14 +1587,14 @@
     function createState(options) {
         return {
             options: copyOptions(options),
-            outputs: {},
-            windowIndex: {},
-            parked: {},
-            floating: {},
-            manualFloating: {},
-            manualTiled: {},
-            ruleFloating: {},
-            fullscreen: {},
+            outputs: emptyMap(),
+            windowIndex: emptyMap(),
+            parked: emptyMap(),
+            floating: emptyMap(),
+            manualFloating: emptyMap(),
+            manualTiled: emptyMap(),
+            ruleFloating: emptyMap(),
+            fullscreen: emptyMap(),
             lastTiledWindowId: null,
             lastFloatingWindowId: null,
             previousTiledWindowId: null,
