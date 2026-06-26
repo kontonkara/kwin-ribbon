@@ -55,8 +55,13 @@
                 return info;
             }
             remember(windowRef, info);
-            if (info.action === "tile" && options.tileNewWindows !== false) {
-                addWindow(state, info.outputId, info.workspaceIndex, info.windowId);
+            if (info.action === "tile") {
+                if (state.fullscreen[info.windowId]) {
+                    setWindowFullscreen(state, info.windowId, false);
+                }
+                if (options.tileNewWindows !== false && !state.floating[info.windowId]) {
+                    addWindow(state, info.outputId, info.workspaceIndex, info.windowId);
+                }
             } else if (info.action === "fullscreen") {
                 setWindowFullscreen(state, info.windowId, true);
             } else if (info.action === "park" && state.windowIndex[info.windowId]) {
@@ -89,6 +94,10 @@
             return null;
         }
 
+        function syncActiveWindow() {
+            return handleActiveWindowChanged(adapterActiveWindow(adapterEnv));
+        }
+
         function syncWindows() {
             var windows = adapterWindows(adapterEnv);
             var seen = emptyMap();
@@ -106,7 +115,7 @@
                     handleWindowRemoved(id);
                 }
             }
-            handleActiveWindowChanged(adapterActiveWindow(adapterEnv));
+            syncActiveWindow();
             return state;
         }
 
@@ -118,6 +127,7 @@
             if (adapterEnv.workspace) {
                 signalConnect(adapterEnv.workspace.windowAdded, function (windowRef) {
                     handleWindowAdded(windowRef);
+                    syncActiveWindow();
                     arrange();
                 });
                 signalConnect(adapterEnv.workspace.windowRemoved, function (windowRef) {
@@ -162,6 +172,7 @@
             return {
                 outputId: outputId,
                 workspaceIndex: workspaceIndex,
+                windowId: value.windowId || (activeInfo && activeInfo.windowId),
                 area: area || { x: 0, y: 0, width: 1, height: 1 },
                 gap: value.gap
             };
@@ -207,12 +218,37 @@
             }
         }
 
+        function focusedRegistryEntry(scope) {
+            var scopeId = String((scope && scope.windowId) || "");
+            var workspace = getWorkspace(state, actionOutputId(scope), actionWorkspaceIndex(scope));
+            var id = focusedWindowId(workspace);
+            if (scopeId !== "" && registry[scopeId]) {
+                return registry[scopeId];
+            }
+            return id ? registry[id] || null : null;
+        }
+
+        function applyFullscreenAction(actionName, entry) {
+            var id;
+            if (actionName !== "kwin-ribbon-fullscreen-window" || !entry || !entry.windowRef || typeof adapterEnv.setWindowFullscreen !== "function") {
+                return false;
+            }
+            id = entry.classification && entry.classification.windowId;
+            if (!id) {
+                return false;
+            }
+            return adapterEnv.setWindowFullscreen(entry.windowRef, state.fullscreen[id] === true);
+        }
+
         function dispatchAction(actionName, scope) {
+            var activeLocation = syncActiveWindow();
             var targetScope = defaultArrangeScope(scope);
+            var fullscreenTarget = focusedRegistryEntry(targetScope);
             var location = dispatchRibbonAction(state, actionName, targetScope);
             if (location !== null && location !== undefined) {
+                applyFullscreenAction(actionName, fullscreenTarget);
                 arrange(targetScope);
-                activateLocation(location);
+                activateLocation(location || activeLocation);
             }
             return location;
         }

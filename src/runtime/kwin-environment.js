@@ -148,6 +148,17 @@
                 windowRef.frameGeometry = frameGeometry;
                 return true;
             },
+            setWindowFullscreen: function (windowRef, enabled) {
+                if (!windowRef) {
+                    return false;
+                }
+                try {
+                    windowRef.fullScreen = enabled === true;
+                    return true;
+                } catch (ignore) {
+                    return false;
+                }
+            },
             activateWindow: function (windowRef) {
                 if (typeof workspace.activateWindow === "function") {
                     workspace.activateWindow(windowRef);

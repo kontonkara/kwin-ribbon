@@ -115,7 +115,7 @@ const actionAdapter = api.createKWinAdapter({
 actionAdapter.handleWindowAdded(actionFirst);
 actionAdapter.handleWindowAdded(actionSecond);
 assert.equal(actionAdapter.registerShortcuts(), true);
-assert.equal(registered.every((entry) => entry.shortcut === ""), true);
+assert.equal(registered.every((entry) => typeof entry.shortcut === "string" && entry.shortcut.length > 0), true);
 registered.find((entry) => entry.name === "kwin-ribbon-focus-column-left").callback();
 assert.equal(actionAdapter.state.lastTiledWindowId, "action-1");
 assert.deepEqual(activated, ["action-1"]);
@@ -123,9 +123,40 @@ assert.equal(actionFirst.frameGeometry.width, 100);
 assert.equal(registered.some((entry) => entry.name === "kwin-ribbon-maximize-column"), true);
 
 actionAdapter.dispatchAction("kwin-ribbon-maximize-column", { outputId: "screen-1", workspaceIndex: 0, area: { x: 0, y: 0, width: 100, height: 100 } });
-assert.equal(api.getWorkspace(actionAdapter.state, "screen-1", 0).columns[0].fullWidth, true);
+const actionWorkspace = api.getWorkspace(actionAdapter.state, "screen-1", 0);
+assert.equal(actionWorkspace.columns[actionWorkspace.focusColumn].fullWidth, true);
 actionAdapter.dispatchAction("kwin-ribbon-center-column", { outputId: "screen-1", workspaceIndex: 0, area: { x: 0, y: 0, width: 100, height: 100 } });
 assert.equal(actionAdapter.lastProjection().frames.length, 2);
+
+const fullscreenTarget = { internalId: "fullscreen-target", output: "screen-1", fullScreen: false };
+const fullscreenAdapter = api.createKWinAdapter({
+  getActiveWindow: () => fullscreenTarget,
+  setWindowFullscreen: (windowRef, enabled) => {
+    windowRef.fullScreen = enabled;
+    return true;
+  },
+  getArrangeArea: () => ({ x: 0, y: 0, width: 100, height: 100 })
+});
+fullscreenAdapter.handleWindowAdded(fullscreenTarget);
+fullscreenAdapter.dispatchAction("kwin-ribbon-fullscreen-window", { outputId: "screen-1", workspaceIndex: 0 });
+assert.equal(fullscreenTarget.fullScreen, true);
+fullscreenAdapter.dispatchAction("kwin-ribbon-fullscreen-window", { outputId: "screen-1", workspaceIndex: 0 });
+assert.equal(fullscreenTarget.fullScreen, false);
+
+const floatingTarget = { internalId: "floating-target", output: "screen-1" };
+const floatingAdapter = api.createKWinAdapter({
+  getWindows: () => [floatingTarget],
+  getActiveWindow: () => floatingTarget,
+  getArrangeArea: () => ({ x: 0, y: 0, width: 100, height: 100 })
+});
+floatingAdapter.handleWindowAdded(floatingTarget);
+floatingAdapter.dispatchAction("kwin-ribbon-toggle-floating", { outputId: "screen-1", workspaceIndex: 0 });
+assert.equal(floatingAdapter.state.floating["floating-target"], true);
+assert.equal(floatingAdapter.state.windowIndex["floating-target"], undefined);
+floatingAdapter.syncWindows();
+assert.equal(floatingAdapter.state.windowIndex["floating-target"], undefined);
+floatingAdapter.dispatchAction("kwin-ribbon-toggle-floating", { outputId: "screen-1", workspaceIndex: 0 });
+assert.equal(floatingAdapter.state.windowIndex["floating-target"].columnIndex, 0);
 
 const disabledAdapter = api.createKWinAdapter({ registerShortcut: () => registered.push("disabled") }, { enableWindowManagementShortcuts: false });
 assert.equal(disabledAdapter.registerShortcuts(), false);

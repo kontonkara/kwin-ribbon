@@ -1967,7 +1967,11 @@
     }
 
     function focusedActionWindowId(state, scope) {
+        var explicitId = String((scope && scope.windowId) || "");
         var workspace = getWorkspace(state, actionOutputId(scope), actionWorkspaceIndex(scope));
+        if (explicitId !== "" && (state.windowIndex[explicitId] || state.parked[explicitId] || state.floating[explicitId] || state.fullscreen[explicitId])) {
+            return explicitId;
+        }
         return focusedWindowId(workspace);
     }
 
@@ -1987,19 +1991,29 @@
         return centerFocusedColumnInViewport(state, actionOutputId(value), actionWorkspaceIndex(value), area.width, value.gap);
     }
 
+    function switchColumnWidthAction(state, scope) {
+        return switchPresetColumnWidth(state, actionOutputId(scope), actionWorkspaceIndex(scope), 1);
+    }
+
+    function switchColumnWidthBackAction(state, scope) {
+        return switchPresetColumnWidthBack(state, actionOutputId(scope), actionWorkspaceIndex(scope));
+    }
+
     var RIBBON_ACTION_SPECS = [
-        { name: "kwin-ribbon-focus-column-left", title: "Ribbon: Focus column left", shortcut: "", handler: scopedAction(focusColumnLeft) },
-        { name: "kwin-ribbon-focus-column-right", title: "Ribbon: Focus column right", shortcut: "", handler: scopedAction(focusColumnRight) },
-        { name: "kwin-ribbon-focus-window-up", title: "Ribbon: Focus window up", shortcut: "", handler: scopedAction(focusWindowUp) },
-        { name: "kwin-ribbon-focus-window-down", title: "Ribbon: Focus window down", shortcut: "", handler: scopedAction(focusWindowDown) },
-        { name: "kwin-ribbon-move-column-left", title: "Ribbon: Move column left", shortcut: "", handler: scopedAction(moveColumnLeft) },
-        { name: "kwin-ribbon-move-column-right", title: "Ribbon: Move column right", shortcut: "", handler: scopedAction(moveColumnRight) },
-        { name: "kwin-ribbon-move-window-up", title: "Ribbon: Move window up", shortcut: "", handler: scopedAction(moveWindowUp) },
-        { name: "kwin-ribbon-move-window-down", title: "Ribbon: Move window down", shortcut: "", handler: scopedAction(moveWindowDown) },
-        { name: "kwin-ribbon-maximize-column", title: "Ribbon: Maximize column", shortcut: "", handler: scopedAction(toggleColumnFullWidth) },
-        { name: "kwin-ribbon-fullscreen-window", title: "Ribbon: Fullscreen window", shortcut: "", handler: fullscreenWindowAction },
-        { name: "kwin-ribbon-toggle-floating", title: "Ribbon: Toggle floating", shortcut: "", handler: floatingWindowAction },
-        { name: "kwin-ribbon-center-column", title: "Ribbon: Center column", shortcut: "", handler: centerColumnAction }
+        { name: "kwin-ribbon-focus-column-left", title: "Ribbon: Focus column left", shortcut: "Meta+Alt+H", handler: scopedAction(focusColumnLeft) },
+        { name: "kwin-ribbon-focus-column-right", title: "Ribbon: Focus column right", shortcut: "Meta+Alt+L", handler: scopedAction(focusColumnRight) },
+        { name: "kwin-ribbon-focus-window-up", title: "Ribbon: Focus window up", shortcut: "Meta+Alt+K", handler: scopedAction(focusWindowUp) },
+        { name: "kwin-ribbon-focus-window-down", title: "Ribbon: Focus window down", shortcut: "Meta+Alt+J", handler: scopedAction(focusWindowDown) },
+        { name: "kwin-ribbon-move-column-left", title: "Ribbon: Move column left", shortcut: "Meta+Alt+Shift+H", handler: scopedAction(moveColumnLeft) },
+        { name: "kwin-ribbon-move-column-right", title: "Ribbon: Move column right", shortcut: "Meta+Alt+Shift+L", handler: scopedAction(moveColumnRight) },
+        { name: "kwin-ribbon-move-window-up", title: "Ribbon: Move window up", shortcut: "Meta+Alt+Shift+K", handler: scopedAction(moveWindowUp) },
+        { name: "kwin-ribbon-move-window-down", title: "Ribbon: Move window down", shortcut: "Meta+Alt+Shift+J", handler: scopedAction(moveWindowDown) },
+        { name: "kwin-ribbon-next-column-width", title: "Ribbon: Next column width", shortcut: "Meta+Alt+W", handler: switchColumnWidthAction },
+        { name: "kwin-ribbon-previous-column-width", title: "Ribbon: Previous column width", shortcut: "Meta+Alt+Shift+W", handler: switchColumnWidthBackAction },
+        { name: "kwin-ribbon-maximize-column", title: "Ribbon: Maximize column", shortcut: "Meta+Alt+M", handler: scopedAction(toggleColumnFullWidth) },
+        { name: "kwin-ribbon-fullscreen-window", title: "Ribbon: Fullscreen window", shortcut: "Meta+Alt+F", handler: fullscreenWindowAction },
+        { name: "kwin-ribbon-toggle-floating", title: "Ribbon: Toggle floating", shortcut: "Meta+Alt+Space", handler: floatingWindowAction },
+        { name: "kwin-ribbon-center-column", title: "Ribbon: Center column", shortcut: "Meta+Alt+C", handler: centerColumnAction }
     ];
 
     function getRibbonActionSpecs() {
@@ -2186,6 +2200,17 @@
                 windowRef.frameGeometry = frameGeometry;
                 return true;
             },
+            setWindowFullscreen: function (windowRef, enabled) {
+                if (!windowRef) {
+                    return false;
+                }
+                try {
+                    windowRef.fullScreen = enabled === true;
+                    return true;
+                } catch (ignore) {
+                    return false;
+                }
+            },
             activateWindow: function (windowRef) {
                 if (typeof workspace.activateWindow === "function") {
                     workspace.activateWindow(windowRef);
@@ -2325,8 +2350,13 @@
                 return info;
             }
             remember(windowRef, info);
-            if (info.action === "tile" && options.tileNewWindows !== false) {
-                addWindow(state, info.outputId, info.workspaceIndex, info.windowId);
+            if (info.action === "tile") {
+                if (state.fullscreen[info.windowId]) {
+                    setWindowFullscreen(state, info.windowId, false);
+                }
+                if (options.tileNewWindows !== false && !state.floating[info.windowId]) {
+                    addWindow(state, info.outputId, info.workspaceIndex, info.windowId);
+                }
             } else if (info.action === "fullscreen") {
                 setWindowFullscreen(state, info.windowId, true);
             } else if (info.action === "park" && state.windowIndex[info.windowId]) {
@@ -2359,6 +2389,10 @@
             return null;
         }
 
+        function syncActiveWindow() {
+            return handleActiveWindowChanged(adapterActiveWindow(adapterEnv));
+        }
+
         function syncWindows() {
             var windows = adapterWindows(adapterEnv);
             var seen = emptyMap();
@@ -2376,7 +2410,7 @@
                     handleWindowRemoved(id);
                 }
             }
-            handleActiveWindowChanged(adapterActiveWindow(adapterEnv));
+            syncActiveWindow();
             return state;
         }
 
@@ -2388,6 +2422,7 @@
             if (adapterEnv.workspace) {
                 signalConnect(adapterEnv.workspace.windowAdded, function (windowRef) {
                     handleWindowAdded(windowRef);
+                    syncActiveWindow();
                     arrange();
                 });
                 signalConnect(adapterEnv.workspace.windowRemoved, function (windowRef) {
@@ -2432,6 +2467,7 @@
             return {
                 outputId: outputId,
                 workspaceIndex: workspaceIndex,
+                windowId: value.windowId || (activeInfo && activeInfo.windowId),
                 area: area || { x: 0, y: 0, width: 1, height: 1 },
                 gap: value.gap
             };
@@ -2477,12 +2513,37 @@
             }
         }
 
+        function focusedRegistryEntry(scope) {
+            var scopeId = String((scope && scope.windowId) || "");
+            var workspace = getWorkspace(state, actionOutputId(scope), actionWorkspaceIndex(scope));
+            var id = focusedWindowId(workspace);
+            if (scopeId !== "" && registry[scopeId]) {
+                return registry[scopeId];
+            }
+            return id ? registry[id] || null : null;
+        }
+
+        function applyFullscreenAction(actionName, entry) {
+            var id;
+            if (actionName !== "kwin-ribbon-fullscreen-window" || !entry || !entry.windowRef || typeof adapterEnv.setWindowFullscreen !== "function") {
+                return false;
+            }
+            id = entry.classification && entry.classification.windowId;
+            if (!id) {
+                return false;
+            }
+            return adapterEnv.setWindowFullscreen(entry.windowRef, state.fullscreen[id] === true);
+        }
+
         function dispatchAction(actionName, scope) {
+            var activeLocation = syncActiveWindow();
             var targetScope = defaultArrangeScope(scope);
+            var fullscreenTarget = focusedRegistryEntry(targetScope);
             var location = dispatchRibbonAction(state, actionName, targetScope);
             if (location !== null && location !== undefined) {
+                applyFullscreenAction(actionName, fullscreenTarget);
                 arrange(targetScope);
-                activateLocation(location);
+                activateLocation(location || activeLocation);
             }
             return location;
         }

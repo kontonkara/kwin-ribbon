@@ -30,6 +30,8 @@ assert.equal(fallbackEnv.setFrameGeometry(win, { x: 0, y: 0, width: 0, height: 1
 assert.equal(win.frameGeometry, undefined);
 assert.equal(fallbackEnv.setFrameGeometry(win, { x: 1, y: 2, width: 3, height: 4 }), true);
 assert.deepEqual(plain(win.frameGeometry), { x: 1, y: 2, width: 3, height: 4 });
+assert.equal(fallbackEnv.setWindowFullscreen(win, true), true);
+assert.equal(win.fullScreen, true);
 
 const added = { connect() {} };
 const workspace = {
