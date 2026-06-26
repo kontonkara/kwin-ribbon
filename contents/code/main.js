@@ -104,6 +104,121 @@
         return out;
     }
 
+    function nextId(state, key, prefix) {
+        var next = state && typeof state[key] === "number" ? state[key] : 1;
+        if (state) {
+            state[key] = next + 1;
+        }
+        return prefix + next;
+    }
+
+    function normalizeWorkspaceIndex(value) {
+        var index = parseInt(value, 10);
+        if (!isFinite(index) || index < 0) {
+            return 0;
+        }
+        return index;
+    }
+
+    function normalizeWindowIds(value) {
+        var raw = value;
+        var result = [];
+        var seen = {};
+        var i;
+        var id;
+
+        if (raw === undefined || raw === null) {
+            return result;
+        }
+        if (!isArray(raw)) {
+            raw = [raw];
+        }
+        for (i = 0; i < raw.length; i += 1) {
+            id = String(raw[i] || "");
+            if (id !== "" && !seen[id]) {
+                seen[id] = true;
+                result.push(id);
+            }
+        }
+        return result;
+    }
+
+    function createWorkspace(state, name) {
+        return {
+            id: nextId(state, "nextWorkspaceId", "workspace-"),
+            name: name ? String(name) : null,
+            columns: [],
+            focusColumn: 0,
+            prevFocusColumn: -1,
+            prevColumnOnRemoval: -1,
+            scrollOffset: 0
+        };
+    }
+
+    function createOutput(state, outputId) {
+        var id = String(outputId || "default");
+        return {
+            id: id,
+            currentWorkspaceIndex: 0,
+            previousWorkspaceId: null,
+            workspaceRenderIndex: 0,
+            workspaces: [createWorkspace(state)]
+        };
+    }
+
+    function ensureOutput(state, outputId) {
+        var id = String(outputId || "default");
+        if (!state.outputs[id]) {
+            state.outputs[id] = createOutput(state, id);
+        }
+        return state.outputs[id];
+    }
+
+    function ensureWorkspace(state, outputId, workspaceIndex) {
+        var output = ensureOutput(state, outputId);
+        var index = normalizeWorkspaceIndex(workspaceIndex);
+        while (output.workspaces.length <= index) {
+            output.workspaces.push(createWorkspace(state));
+        }
+        return output.workspaces[index];
+    }
+
+    function getWorkspace(state, outputId, workspaceIndex) {
+        var output = ensureOutput(state, outputId);
+        var index = workspaceIndex;
+        if (index === undefined || index === null) {
+            index = output.currentWorkspaceIndex;
+        }
+        return ensureWorkspace(state, outputId, index);
+    }
+
+    function createColumn(state, windowIds, options) {
+        var opts = options || {};
+        var windows = normalizeWindowIds(windowIds);
+        return {
+            id: nextId(state, "nextColumnId", "column-"),
+            width: clampRatio(opts.width === undefined ? state.options.defaultColumnWidth : opts.width),
+            widthFixed: opts.widthFixed === true,
+            fullWidth: opts.fullWidth === true,
+            restoreWidth: null,
+            restoreWidthFixed: null,
+            windows: windows,
+            focusWindow: windows.length > 0 ? 0 : -1,
+            presetWidthIndex: -1,
+            tabbed: normalizeColumnDisplay(opts.display || state.options.defaultColumnDisplay) === "tabbed",
+            heightWeights: {}
+        };
+    }
+
+    function createLocation(outputId, workspaceIndex, columnIndex, windowIndex) {
+        return {
+            outputId: String(outputId || "default"),
+            workspaceIndex: normalizeWorkspaceIndex(workspaceIndex),
+            columnIndex: Math.max(0, parseInt(columnIndex, 10) || 0),
+            windowIndex: Math.max(0, parseInt(windowIndex, 10) || 0)
+        };
+    }
+
     function createState(options) {
         return {
             options: copyOptions(options),
@@ -128,7 +243,14 @@
             version: VERSION,
             defaults: copyOptions(),
             copyOptions: copyOptions,
-            createState: createState
+            createState: createState,
+            createWorkspace: createWorkspace,
+            createOutput: createOutput,
+            ensureOutput: ensureOutput,
+            ensureWorkspace: ensureWorkspace,
+            getWorkspace: getWorkspace,
+            createColumn: createColumn,
+            createLocation: createLocation
         };
     }
 
