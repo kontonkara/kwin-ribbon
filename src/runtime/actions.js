@@ -33,8 +33,9 @@
 
     function centerColumnAction(state, scope) {
         var value = scope || {};
-        var area = normalizeArea(value.area);
-        return centerFocusedColumnInViewport(state, actionOutputId(value), actionWorkspaceIndex(value), area.width, value.gap);
+        var gap = scrollGap(state, value.gap);
+        var area = contentAreaForGap(value.area, gap);
+        return centerFocusedColumnInViewport(state, actionOutputId(value), actionWorkspaceIndex(value), area.width, gap);
     }
 
     function switchColumnWidthAction(state, scope) {

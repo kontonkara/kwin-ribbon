@@ -65,15 +65,15 @@ assert.equal(typeof sandbox.kwinRibbonRunAction, "function");
 assert.equal(typeof sandbox.KWinRibbon.runAction, "function");
 assert.equal(messages[0], "kwin-ribbon loaded 0.1.0");
 assert.equal(registered.length > 0, true);
-assert.deepEqual(plain(windows[0].frameGeometry), { x: 0, y: 0, width: 200, height: 100 });
-assert.deepEqual(plain(windows[1].frameGeometry), { x: 216, y: 0, width: 200, height: 100 });
+assert.deepEqual(plain(windows[0].frameGeometry), { x: 16, y: 16, width: 168, height: 68 });
+assert.deepEqual(plain(windows[1].frameGeometry), { x: 200, y: 16, width: 168, height: 68 });
 assert.equal(sandbox.kwinRibbonDebugSnapshot().knownWindows.length, 2);
 assert.equal(sandbox.kwinRibbonDebugSnapshot().runActionAvailable, true);
 
 windows.push({ internalId: "boot-3", output: "screen-1" });
 windowAdded.emit(windows[2]);
 assert.equal(sandbox.__kwinRibbonAdapter.state.windowIndex["boot-3"].columnIndex, 1);
-assert.equal(windows[2].frameGeometry.width, 200);
+assert.equal(windows[2].frameGeometry.width, 168);
 
 sandbox.kwinRibbonRunAction("kwin-ribbon-focus-column-right");
 assert.equal(sandbox.__kwinRibbonAdapter.state.lastTiledWindowId, "boot-3");

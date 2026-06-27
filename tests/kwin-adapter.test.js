@@ -287,8 +287,8 @@ const projectionAdapter = api.createKWinAdapter({
 projectionAdapter.handleWindowAdded(firstWindow);
 projectionAdapter.handleWindowAdded(secondWindow);
 projectionAdapter.arrange({ outputId: "screen-1", workspaceIndex: 0 });
-assert.deepEqual(plain(firstWindow.frameGeometry), { x: -300, y: 20, width: 300, height: 200 });
-assert.deepEqual(plain(secondWindow.frameGeometry), { x: 10, y: 20, width: 300, height: 200 });
+assert.deepEqual(plain(firstWindow.frameGeometry), { x: -270, y: 30, width: 280, height: 180 });
+assert.deepEqual(plain(secondWindow.frameGeometry), { x: 20, y: 30, width: 280, height: 180 });
 assert.equal(projectionAdapter.lastProjection().frames.length, 2);
 
 const scrollFirst = { internalId: "scroll-1", output: "screen-1" };
@@ -365,7 +365,7 @@ assert.equal(registered.some((entry) => entry.name === "kwin-ribbon-close-window
 registered.find((entry) => entry.name === "kwin-ribbon-focus-column-left").callback();
 assert.equal(actionAdapter.state.lastTiledWindowId, "action-1");
 assert.deepEqual(activated, ["action-1"]);
-assert.equal(actionFirst.frameGeometry.width, 100);
+assert.equal(actionFirst.frameGeometry.width, 68);
 assert.equal(registered.some((entry) => entry.name === "kwin-ribbon-maximize-column" && entry.title === "KWin Ribbon: Maximize Column"), true);
 
 actionAdapter.dispatchAction("kwin-ribbon-maximize-column", { outputId: "screen-1", workspaceIndex: 0, area: { x: 0, y: 0, width: 100, height: 100 } });
@@ -444,7 +444,7 @@ fullscreenAdapter.dispatchAction("kwin-ribbon-fullscreen-window", { outputId: "s
 assert.equal(fullscreenTarget.fullScreen, true);
 assert.equal(fullscreenAdapter.state.fullscreen["fullscreen-target"], true);
 assert.equal(fullscreenAdapter.state.windowIndex["fullscreen-target"], undefined);
-assert.equal(fullscreenSibling.frameGeometry.width, 100);
+assert.equal(fullscreenSibling.frameGeometry.width, 68);
 assert.deepEqual(fullscreenRaised, ["fullscreen-target"]);
 assert.deepEqual(fullscreenActivated, ["fullscreen-target"]);
 fullscreenTarget.fullScreen = false;
@@ -479,8 +479,8 @@ const centerAdapter = api.createKWinAdapter({
 centerAdapter.handleWindowAdded(centerWindow);
 api.setColumnWidth(centerAdapter.state, "screen-1", 0, 0.5);
 centerAdapter.dispatchAction("kwin-ribbon-center-column", { outputId: "screen-1", workspaceIndex: 0 });
-assert.equal(api.getWorkspace(centerAdapter.state, "screen-1", 0).scrollOffset, -25);
-assert.equal(centerAdapter.lastProjection().frames[0].frameGeometry.x, 25);
+assert.equal(api.getWorkspace(centerAdapter.state, "screen-1", 0).scrollOffset, -17);
+assert.equal(centerAdapter.lastProjection().frames[0].frameGeometry.x, 33);
 
 const disabledAdapter = api.createKWinAdapter({ registerShortcut: () => registered.push("disabled") }, { enableWindowManagementShortcuts: false });
 assert.equal(disabledAdapter.registerShortcuts(), false);

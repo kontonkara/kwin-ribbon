@@ -1900,6 +1900,17 @@
         };
     }
 
+    function contentAreaForGap(area, gap) {
+        var value = normalizeArea(area);
+        var spacing = Math.max(0, parseFloat(gap) || 0);
+        return {
+            x: value.x + spacing,
+            y: value.y + spacing,
+            width: Math.max(1, value.width - spacing * 2),
+            height: Math.max(1, value.height - spacing * 2)
+        };
+    }
+
     function roundedFrame(x, y, width, height) {
         return {
             x: Math.round(x),
@@ -1961,22 +1972,24 @@
         var workspace = getWorkspace(state, outputId, workspaceIndex);
         var area = normalizeArea(value.area);
         var gap = scrollGap(state, value.gap);
+        var contentArea = contentAreaForGap(area, gap);
         if (value.preserveScrollOffset !== true) {
-            updateScrollOffsetForFocus(state, outputId, workspaceIndex, area.width, { gap: gap });
+            updateScrollOffsetForFocus(state, outputId, workspaceIndex, contentArea.width, { gap: gap });
         }
-        var metrics = computeColumnMetrics(state, outputId, workspaceIndex, area.width, gap);
+        var metrics = computeColumnMetrics(state, outputId, workspaceIndex, contentArea.width, gap);
         var frames = [];
         var i;
         var columnFrames;
 
         for (i = 0; i < workspace.columns.length; i += 1) {
-            columnFrames = projectColumnFrames(workspace.columns[i], metrics.columns[i], area, workspace.scrollOffset, gap);
+            columnFrames = projectColumnFrames(workspace.columns[i], metrics.columns[i], contentArea, workspace.scrollOffset, gap);
             frames = frames.concat(columnFrames);
         }
         return {
             outputId: outputId,
             workspaceIndex: workspaceIndex,
             area: area,
+            contentArea: contentArea,
             gap: gap,
             scrollOffset: workspace.scrollOffset,
             frames: frames
@@ -2018,8 +2031,9 @@
 
     function centerColumnAction(state, scope) {
         var value = scope || {};
-        var area = normalizeArea(value.area);
-        return centerFocusedColumnInViewport(state, actionOutputId(value), actionWorkspaceIndex(value), area.width, value.gap);
+        var gap = scrollGap(state, value.gap);
+        var area = contentAreaForGap(value.area, gap);
+        return centerFocusedColumnInViewport(state, actionOutputId(value), actionWorkspaceIndex(value), area.width, gap);
     }
 
     function switchColumnWidthAction(state, scope) {
