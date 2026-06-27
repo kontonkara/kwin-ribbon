@@ -2,6 +2,7 @@
     "KPlugin": {
         "Description": "Native pointer wheel shortcut bridge for KWin Ribbon",
         "EnabledByDefault": true,
+        "Id": "kwin_ribbon_wheel_bridge",
         "License": "MIT",
         "Name": "KWin Ribbon Wheel Bridge",
         "Version": "0.1.0"

@@ -11,8 +11,9 @@
     "validate": "npm run check",
     "kwin:install": "npm run build && kpackagetool6 --type=KWin/Script -i .",
     "kwin:remove": "kpackagetool6 --type=KWin/Script -r kwin-ribbon",
-    "native:configure": "cmake -S . -B build/native",
+    "native:configure": "cmake -S . -B build/native -DCMAKE_INSTALL_PREFIX=\"$HOME/.local\"",
     "native:build": "cmake --build build/native",
-    "native:install": "cmake --install build/native"
+    "native:install": "cmake --install build/native --prefix \"$HOME/.local\"",
+    "native:enable": "kwriteconfig6 --file kwinrc --group Plugins --key kwin_ribbon_wheel_bridgeEnabled true"
   }
 }
