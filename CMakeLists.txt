@@ -16,8 +16,11 @@ include(KDEInstallDirs)
 include(KDECMakeSettings)
 include(KDECompilerSettings NO_POLICY_SCOPE)
 
-find_package(Qt6 ${QT_MIN_VERSION} REQUIRED COMPONENTS Core)
+find_package(Qt6 ${QT_MIN_VERSION} REQUIRED COMPONENTS Core Widgets)
 find_package(KF6 ${KF6_MIN_VERSION} REQUIRED COMPONENTS CoreAddons)
 find_package(KWin REQUIRED COMPONENTS kwin)
 
 add_subdirectory(native)
+
+install(FILES metadata.json DESTINATION ${KDE_INSTALL_DATADIR}/kwin/scripts/kwin-ribbon)
+install(DIRECTORY contents DESTINATION ${KDE_INSTALL_DATADIR}/kwin/scripts/kwin-ribbon)
