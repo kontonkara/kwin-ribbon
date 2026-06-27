@@ -55,11 +55,13 @@ assert.equal(specs.some((spec) => spec.name === "kwin-ribbon-previous-column-wid
 assert.equal(specs.some((spec) => spec.name === "kwin-ribbon-maximize-column"), true);
 assert.equal(specs.some((spec) => spec.name === "kwin-ribbon-fullscreen-window"), true);
 assert.equal(specs.some((spec) => spec.name === "kwin-ribbon-toggle-floating"), true);
+assert.equal(specs.some((spec) => spec.name === "kwin-ribbon-close-window" && spec.title === "KWin Ribbon: Close Window"), true);
 assert.equal(specs.some((spec) => spec.name === "kwin-ribbon-center-column"), true);
 assert.equal(edgeActionNames.every((name) => specs.some((spec) => spec.name === name)), true);
 assert.equal(mutationActionNames.every((name) => specs.some((spec) => spec.name === name)), true);
 assert.equal(heightActionNames.every((name) => specs.some((spec) => spec.name === name)), true);
 assert.equal(developmentSpecs.some((spec) => spec.name === "kwin-ribbon-focus-column-left" && spec.shortcut === "Meta+Alt+H"), true);
+assert.equal(developmentSpecs.some((spec) => spec.name === "kwin-ribbon-close-window" && spec.shortcut === "Meta+Q"), true);
 assert.equal(developmentSpecs.some((spec) => spec.shortcut.length > 0), true);
 
 const edgeState = api.createState();
@@ -243,3 +245,4 @@ assert.equal(state.windowIndex.one, undefined);
 
 api.dispatchRibbonAction(state, "kwin-ribbon-toggle-floating", { outputId: "screen-1", workspaceIndex: 0 });
 assert.equal(state.floating.two, true);
+assert.equal(api.dispatchRibbonAction(state, "kwin-ribbon-close-window", { outputId: "screen-1", workspaceIndex: 0 }), true);

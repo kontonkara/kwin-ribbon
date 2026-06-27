@@ -78,6 +78,29 @@ assert.notEqual(env.lastClientArea.area.height, screen.geometry.height);
 assert.equal(messages.some((message) => message.indexOf("kwin-ribbon client area path=WorkArea:output-desktop") >= 0), true);
 assert.equal(env.activateWindow(win), true);
 assert.equal(workspace.activated, win);
+const closeMethodWindow = {
+  internalId: "close-method",
+  closeWindow() {
+    this.closed = true;
+  }
+};
+assert.equal(env.closeWindow(closeMethodWindow), true);
+assert.equal(closeMethodWindow.closed, true);
+const blockedCloseWindow = {
+  internalId: "blocked-close",
+  closeable: false,
+  closeWindow() {
+    this.closed = true;
+  }
+};
+assert.equal(env.closeWindow(blockedCloseWindow), false);
+assert.equal(blockedCloseWindow.closed, undefined);
+const workspaceCloseWindow = { internalId: "workspace-close" };
+workspace.closeWindow = (windowRef) => {
+  workspace.closed = windowRef;
+};
+assert.equal(env.closeWindow(workspaceCloseWindow), true);
+assert.equal(workspace.closed, workspaceCloseWindow);
 assert.equal(env.registerShortcut("name", "title", "", () => {}), true);
 assert.equal(registered.length, 1);
 assert.equal(registered[0].name, "name");

@@ -2012,6 +2012,10 @@
         return switchPresetWindowHeightBack(state, actionOutputId(scope), actionWorkspaceIndex(scope));
     }
 
+    function closeWindowAction() {
+        return true;
+    }
+
     var RIBBON_ACTION_SPECS = [
         { name: "kwin-ribbon-focus-column-left", title: "KWin Ribbon: Focus Column Left", handler: scopedAction(focusColumnLeft) },
         { name: "kwin-ribbon-focus-column-right", title: "KWin Ribbon: Focus Column Right", handler: scopedAction(focusColumnRight) },
@@ -2046,6 +2050,7 @@
         { name: "kwin-ribbon-maximize-column", title: "KWin Ribbon: Maximize Column", handler: scopedAction(toggleColumnFullWidth) },
         { name: "kwin-ribbon-fullscreen-window", title: "KWin Ribbon: Fullscreen Window", handler: fullscreenWindowAction },
         { name: "kwin-ribbon-toggle-floating", title: "KWin Ribbon: Toggle Floating", handler: floatingWindowAction },
+        { name: "kwin-ribbon-close-window", title: "KWin Ribbon: Close Window", handler: closeWindowAction },
         { name: "kwin-ribbon-center-column", title: "KWin Ribbon: Center Column", handler: centerColumnAction }
     ];
 
@@ -2063,6 +2068,7 @@
         "kwin-ribbon-maximize-column": "Meta+Alt+M",
         "kwin-ribbon-fullscreen-window": "Meta+Alt+F",
         "kwin-ribbon-toggle-floating": "Meta+Alt+Space",
+        "kwin-ribbon-close-window": "Meta+Q",
         "kwin-ribbon-center-column": "Meta+Alt+C"
     };
 
@@ -2200,6 +2206,24 @@
 
     function validGeometry(value) {
         return !!(value && isFinite(value.x) && isFinite(value.y) && isFinite(value.width) && isFinite(value.height) && value.width > 0 && value.height > 0);
+    }
+
+    function windowCloseable(windowRef) {
+        var value = readWindowValue(windowRef, ["closeable", "closable"]);
+        return value !== false;
+    }
+
+    function tryCloseCall(object, name, args) {
+        var result;
+        if (!object || typeof object[name] !== "function") {
+            return null;
+        }
+        try {
+            result = object[name].apply(object, args || []);
+            return result !== false;
+        } catch (ignore) {
+            return false;
+        }
     }
 
     function boolConfigValue(value) {
@@ -2439,6 +2463,37 @@
                     }
                 } catch (ignore) {
                     return false;
+                }
+                return false;
+            },
+            closeWindow: function (windowRef) {
+                var result;
+                if (!windowRef || !windowCloseable(windowRef)) {
+                    return false;
+                }
+                result = tryCloseCall(windowRef, "closeWindow");
+                if (result !== null) {
+                    return result;
+                }
+                result = tryCloseCall(windowRef, "close");
+                if (result !== null) {
+                    return result;
+                }
+                result = tryCloseCall(workspace, "closeWindow", [windowRef]);
+                if (result !== null) {
+                    return result;
+                }
+                result = tryCloseCall(workspace, "closeClient", [windowRef]);
+                if (result !== null) {
+                    return result;
+                }
+                result = tryCloseCall(workspace, "closeActiveWindow");
+                if (result !== null) {
+                    return result;
+                }
+                result = tryCloseCall(workspace, "slotWindowClose");
+                if (result !== null) {
+                    return result;
                 }
                 return false;
             },
@@ -2973,6 +3028,24 @@
             return !!(id && state.fullscreen[id]);
         }
 
+        function closeActiveWindow(active, activeInfo, targetScope, beforeSnapshot) {
+            var closed = false;
+            if (active && typeof adapterEnv.closeWindow === "function") {
+                closed = adapterEnv.closeWindow(active) === true;
+            }
+            if (closed) {
+                syncWindows();
+                arrange(targetScope, {
+                    actionId: "kwin-ribbon-close-window",
+                    activeKWinWindowId: activeInfo && activeInfo.windowId,
+                    activeKWinWindowReason: activeInfo && activeInfo.reason,
+                    activeKWinWindowKnown: !!(activeInfo && activeInfo.windowId && registry[activeInfo.windowId]),
+                    beforeSnapshot: beforeSnapshot
+                });
+            }
+            return closed;
+        }
+
         function dispatchAction(actionName, scope) {
             var active = adapterActiveWindow(adapterEnv);
             var activeInfo = active ? classify(active) : null;
@@ -2983,6 +3056,9 @@
             var fullscreenEnabled;
             var location = dispatchRibbonAction(state, actionName, targetScope);
             if (location !== null && location !== undefined) {
+                if (actionName === "kwin-ribbon-close-window") {
+                    return closeActiveWindow(active, activeInfo, targetScope, beforeSnapshot);
+                }
                 applyFullscreenAction(actionName, fullscreenTarget);
                 fullscreenEnabled = fullscreenTargetEnabled(fullscreenTarget);
                 targetScope.preserveScrollOffset = actionName === "kwin-ribbon-center-column";

@@ -92,6 +92,24 @@
         return !!(value && isFinite(value.x) && isFinite(value.y) && isFinite(value.width) && isFinite(value.height) && value.width > 0 && value.height > 0);
     }
 
+    function windowCloseable(windowRef) {
+        var value = readWindowValue(windowRef, ["closeable", "closable"]);
+        return value !== false;
+    }
+
+    function tryCloseCall(object, name, args) {
+        var result;
+        if (!object || typeof object[name] !== "function") {
+            return null;
+        }
+        try {
+            result = object[name].apply(object, args || []);
+            return result !== false;
+        } catch (ignore) {
+            return false;
+        }
+    }
+
     function boolConfigValue(value) {
         return value === true || value === "true" || value === "1" || value === 1;
     }
@@ -329,6 +347,37 @@
                     }
                 } catch (ignore) {
                     return false;
+                }
+                return false;
+            },
+            closeWindow: function (windowRef) {
+                var result;
+                if (!windowRef || !windowCloseable(windowRef)) {
+                    return false;
+                }
+                result = tryCloseCall(windowRef, "closeWindow");
+                if (result !== null) {
+                    return result;
+                }
+                result = tryCloseCall(windowRef, "close");
+                if (result !== null) {
+                    return result;
+                }
+                result = tryCloseCall(workspace, "closeWindow", [windowRef]);
+                if (result !== null) {
+                    return result;
+                }
+                result = tryCloseCall(workspace, "closeClient", [windowRef]);
+                if (result !== null) {
+                    return result;
+                }
+                result = tryCloseCall(workspace, "closeActiveWindow");
+                if (result !== null) {
+                    return result;
+                }
+                result = tryCloseCall(workspace, "slotWindowClose");
+                if (result !== null) {
+                    return result;
                 }
                 return false;
             },

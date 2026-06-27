@@ -53,6 +53,10 @@
         return switchPresetWindowHeightBack(state, actionOutputId(scope), actionWorkspaceIndex(scope));
     }
 
+    function closeWindowAction() {
+        return true;
+    }
+
     var RIBBON_ACTION_SPECS = [
         { name: "kwin-ribbon-focus-column-left", title: "KWin Ribbon: Focus Column Left", handler: scopedAction(focusColumnLeft) },
         { name: "kwin-ribbon-focus-column-right", title: "KWin Ribbon: Focus Column Right", handler: scopedAction(focusColumnRight) },
@@ -87,6 +91,7 @@
         { name: "kwin-ribbon-maximize-column", title: "KWin Ribbon: Maximize Column", handler: scopedAction(toggleColumnFullWidth) },
         { name: "kwin-ribbon-fullscreen-window", title: "KWin Ribbon: Fullscreen Window", handler: fullscreenWindowAction },
         { name: "kwin-ribbon-toggle-floating", title: "KWin Ribbon: Toggle Floating", handler: floatingWindowAction },
+        { name: "kwin-ribbon-close-window", title: "KWin Ribbon: Close Window", handler: closeWindowAction },
         { name: "kwin-ribbon-center-column", title: "KWin Ribbon: Center Column", handler: centerColumnAction }
     ];
 
@@ -104,6 +109,7 @@
         "kwin-ribbon-maximize-column": "Meta+Alt+M",
         "kwin-ribbon-fullscreen-window": "Meta+Alt+F",
         "kwin-ribbon-toggle-floating": "Meta+Alt+Space",
+        "kwin-ribbon-close-window": "Meta+Q",
         "kwin-ribbon-center-column": "Meta+Alt+C"
     };
 

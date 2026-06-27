@@ -50,7 +50,8 @@ const newlyWiredActionNames = [
   "kwin-ribbon-next-window-height",
   "kwin-ribbon-previous-window-height",
   "kwin-ribbon-reset-window-height",
-  "kwin-ribbon-reset-column-heights"
+  "kwin-ribbon-reset-column-heights",
+  "kwin-ribbon-close-window"
 ];
 
 const adapter = api.createKWinAdapter({}, { tileNewWindows: true });
@@ -356,6 +357,7 @@ assert.equal(registered.some((entry) => entry.name === "kwin-ribbon-consume-or-e
 assert.equal(registered.some((entry) => entry.name === "kwin-ribbon-swap-window-right" && entry.title === "KWin Ribbon: Swap Window Right"), true);
 assert.equal(registered.some((entry) => entry.name === "kwin-ribbon-next-window-height" && entry.title === "KWin Ribbon: Next Window Height"), true);
 assert.equal(registered.some((entry) => entry.name === "kwin-ribbon-reset-column-heights" && entry.title === "KWin Ribbon: Reset Column Heights"), true);
+assert.equal(registered.some((entry) => entry.name === "kwin-ribbon-close-window" && entry.title === "KWin Ribbon: Close Window"), true);
 registered.find((entry) => entry.name === "kwin-ribbon-focus-column-left").callback();
 assert.equal(actionAdapter.state.lastTiledWindowId, "action-1");
 assert.deepEqual(activated, ["action-1"]);
@@ -370,6 +372,29 @@ assert.equal(actionAdapter.lastProjection().frames.length, 2);
 actionAdapter.dispatchAction("kwin-ribbon-next-column-width", { outputId: "screen-1", workspaceIndex: 0, area: { x: 0, y: 0, width: 100, height: 100 } });
 assert.equal(actionAdapter.debugSnapshot().lastAction.actionId, "kwin-ribbon-next-column-width");
 assert.equal(actionAdapter.debugSnapshot().lastAction.projectedFrameCount, 2);
+
+const closeActionFirst = { internalId: "close-action-1", output: "screen-1" };
+const closeActionSecond = { internalId: "close-action-2", output: "screen-1" };
+let closeActionWindows = [closeActionFirst, closeActionSecond];
+let closeActionActive = closeActionSecond;
+const closeActionClosed = [];
+const closeActionAdapter = api.createKWinAdapter({
+  getWindows: () => closeActionWindows,
+  getActiveWindow: () => closeActionActive,
+  closeWindow: (windowRef) => {
+    closeActionClosed.push(windowRef.internalId);
+    closeActionWindows = closeActionWindows.filter((entry) => entry !== windowRef);
+    return true;
+  },
+  getArrangeArea: () => ({ x: 0, y: 0, width: 100, height: 100 })
+});
+closeActionAdapter.syncWindows();
+api.focusWindowById(closeActionAdapter.state, "close-action-1");
+assert.equal(closeActionAdapter.dispatchAction("kwin-ribbon-close-window", { outputId: "screen-1", workspaceIndex: 0 }), true);
+assert.deepEqual(closeActionClosed, ["close-action-2"]);
+assert.equal(closeActionAdapter.registry["close-action-2"], undefined);
+assert.equal(closeActionAdapter.state.windowIndex["close-action-2"], undefined);
+assert.deepEqual(plain(api.getWorkspace(closeActionAdapter.state, "screen-1", 0).columns.map((column) => column.windows)), [["close-action-1"]]);
 
 const fullscreenSibling = { internalId: "fullscreen-sibling", output: "screen-1", frameGeometry: { x: 0, y: 0, width: 1, height: 1 } };
 const fullscreenTarget = { internalId: "fullscreen-target", output: "screen-1", fullScreen: false };
