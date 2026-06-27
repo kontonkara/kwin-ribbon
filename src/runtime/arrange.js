@@ -69,6 +69,7 @@
         var workspace = getWorkspace(state, outputId, workspaceIndex);
         var area = normalizeArea(value.area);
         var gap = scrollGap(state, value.gap);
+        updateScrollOffsetForFocus(state, outputId, workspaceIndex, area.width, { gap: gap });
         var metrics = computeColumnMetrics(state, outputId, workspaceIndex, area.width, gap);
         var frames = [];
         var i;

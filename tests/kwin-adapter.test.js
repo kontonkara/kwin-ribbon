@@ -97,9 +97,50 @@ const projectionAdapter = api.createKWinAdapter({
 projectionAdapter.handleWindowAdded(firstWindow);
 projectionAdapter.handleWindowAdded(secondWindow);
 projectionAdapter.arrange({ outputId: "screen-1", workspaceIndex: 0 });
-assert.deepEqual(plain(firstWindow.frameGeometry), { x: 10, y: 20, width: 300, height: 200 });
-assert.deepEqual(plain(secondWindow.frameGeometry), { x: 320, y: 20, width: 300, height: 200 });
+assert.deepEqual(plain(firstWindow.frameGeometry), { x: -300, y: 20, width: 300, height: 200 });
+assert.deepEqual(plain(secondWindow.frameGeometry), { x: 10, y: 20, width: 300, height: 200 });
 assert.equal(projectionAdapter.lastProjection().frames.length, 2);
+
+const scrollFirst = { internalId: "scroll-1", output: "screen-1" };
+const scrollSecond = { internalId: "scroll-2", output: "screen-1" };
+const scrollThird = { internalId: "scroll-3", output: "screen-1" };
+const scrollAdapter = api.createKWinAdapter({
+  getActiveWindow: () => scrollFirst,
+  getArrangeArea: () => ({ x: 0, y: 0, width: 100, height: 100 }),
+  setFrameGeometry: (windowRef, frameGeometry) => {
+    if (windowRef.internalId === "scroll-3") {
+      return false;
+    }
+    windowRef.frameGeometry = frameGeometry;
+    return true;
+  }
+}, { gaps: 0 });
+scrollAdapter.handleWindowAdded(scrollFirst);
+scrollAdapter.handleWindowAdded(scrollSecond);
+scrollAdapter.handleWindowAdded(scrollThird);
+const scrollWorkspace = api.getWorkspace(scrollAdapter.state, "screen-1", 0);
+scrollWorkspace.columns.forEach((column) => {
+  column.fullWidth = true;
+});
+api.focusWindowById(scrollAdapter.state, "scroll-1");
+scrollAdapter.arrange({ outputId: "screen-1", workspaceIndex: 0 });
+const scrollInitialFrames = plain(scrollAdapter.lastProjection().frames);
+scrollAdapter.dispatchAction("kwin-ribbon-focus-column-right", { outputId: "screen-1", workspaceIndex: 0 });
+const scrollFocusedFrames = plain(scrollAdapter.lastProjection().frames);
+const scrollSnapshot = scrollAdapter.debugSnapshot();
+assert.equal(scrollWorkspace.scrollOffset, 100);
+assert.notDeepEqual(scrollFocusedFrames, scrollInitialFrames);
+assert.deepEqual(scrollFocusedFrames.map((frame) => frame.frameGeometry.x), [-100, 0, 100]);
+assert.equal(scrollSnapshot.lastAction.actionId, "kwin-ribbon-focus-column-right");
+assert.equal(scrollSnapshot.lastAction.beforeFocusColumn, 0);
+assert.equal(scrollSnapshot.lastAction.afterFocusColumn, 1);
+assert.equal(scrollSnapshot.lastAction.beforeScrollOffset, 0);
+assert.equal(scrollSnapshot.lastAction.afterScrollOffset, 100);
+assert.equal(scrollSnapshot.lastAction.projectedFrameCount, 3);
+assert.equal(scrollSnapshot.lastAction.attemptedGeometryWriteCount, 3);
+assert.equal(scrollSnapshot.lastAction.successfulGeometryWriteCount, 2);
+assert.equal(scrollSnapshot.lastAction.failedGeometryWriteCount, 1);
+assert.equal(scrollSnapshot.lastAction.frameSamples.length, 3);
 
 const registered = [];
 const activated = [];
@@ -128,6 +169,9 @@ const actionWorkspace = api.getWorkspace(actionAdapter.state, "screen-1", 0);
 assert.equal(actionWorkspace.columns[actionWorkspace.focusColumn].fullWidth, true);
 actionAdapter.dispatchAction("kwin-ribbon-center-column", { outputId: "screen-1", workspaceIndex: 0, area: { x: 0, y: 0, width: 100, height: 100 } });
 assert.equal(actionAdapter.lastProjection().frames.length, 2);
+actionAdapter.dispatchAction("kwin-ribbon-next-column-width", { outputId: "screen-1", workspaceIndex: 0, area: { x: 0, y: 0, width: 100, height: 100 } });
+assert.equal(actionAdapter.debugSnapshot().lastAction.actionId, "kwin-ribbon-next-column-width");
+assert.equal(actionAdapter.debugSnapshot().lastAction.projectedFrameCount, 2);
 
 const fullscreenTarget = { internalId: "fullscreen-target", output: "screen-1", fullScreen: false };
 const fullscreenAdapter = api.createKWinAdapter({

@@ -1935,6 +1935,7 @@
         var workspace = getWorkspace(state, outputId, workspaceIndex);
         var area = normalizeArea(value.area);
         var gap = scrollGap(state, value.gap);
+        updateScrollOffsetForFocus(state, outputId, workspaceIndex, area.width, { gap: gap });
         var metrics = computeColumnMetrics(state, outputId, workspaceIndex, area.width, gap);
         var frames = [];
         var i;
@@ -2523,6 +2524,7 @@
         var lastProjection = null;
         var shortcutsRegistered = false;
         var shortcutRegistrations = [];
+        var lastActionDiagnostics = null;
 
         function classify(windowRef, fallbackId) {
             return classifyWindow(windowRef, { fallbackId: fallbackId });
@@ -2667,25 +2669,109 @@
             };
         }
 
-        function writeFrame(windowRef, frameGeometry) {
-            if (typeof adapterEnv.setFrameGeometry === "function") {
-                adapterEnv.setFrameGeometry(windowRef, frameGeometry);
-                return;
-            }
-            windowRef.frameGeometry = frameGeometry;
+        function workspaceArrangeSnapshot(scope) {
+            var workspace = getWorkspace(state, actionOutputId(scope), actionWorkspaceIndex(scope));
+            return {
+                focusColumn: workspace.focusColumn,
+                scrollOffset: workspace.scrollOffset
+            };
         }
 
-        function arrange(scope) {
-            var projection = projectArrangeScope(state, defaultArrangeScope(scope));
+        function readableFrameGeometry(windowRef) {
+            var value;
+            if (!windowRef) {
+                return null;
+            }
+            try {
+                value = normalizeGeometry(windowRef.frameGeometry);
+            } catch (ignore) {
+                value = null;
+            }
+            return validGeometry(value) ? value : null;
+        }
+
+        function sameFrameGeometry(left, right) {
+            var a = normalizeGeometry(left);
+            var b = normalizeGeometry(right);
+            if (!validGeometry(a) || !validGeometry(b)) {
+                return false;
+            }
+            return Math.round(a.x) === Math.round(b.x) && Math.round(a.y) === Math.round(b.y) && Math.round(a.width) === Math.round(b.width) && Math.round(a.height) === Math.round(b.height);
+        }
+
+        function writeFrame(windowRef, frameGeometry) {
+            var beforeFrame = readableFrameGeometry(windowRef);
+            var afterFrame;
+            var writeResult = true;
+            var success;
+            if (typeof adapterEnv.setFrameGeometry === "function") {
+                writeResult = adapterEnv.setFrameGeometry(windowRef, frameGeometry);
+            } else {
+                try {
+                    windowRef.frameGeometry = frameGeometry;
+                } catch (ignore) {
+                    writeResult = false;
+                }
+            }
+            afterFrame = readableFrameGeometry(windowRef);
+            success = writeResult !== false;
+            if (afterFrame && !sameFrameGeometry(afterFrame, frameGeometry)) {
+                success = false;
+            }
+            return {
+                beforeFrame: beforeFrame,
+                requestedFrame: normalizeGeometry(frameGeometry),
+                afterFrame: afterFrame,
+                success: success
+            };
+        }
+
+        function arrange(scope, diagnostics) {
+            var targetScope = defaultArrangeScope(scope);
+            var beforeSnapshot = diagnostics && diagnostics.beforeSnapshot ? diagnostics.beforeSnapshot : workspaceArrangeSnapshot(targetScope);
+            var projection = projectArrangeScope(state, targetScope);
+            var afterSnapshot = workspaceArrangeSnapshot(targetScope);
+            var attemptedWrites = 0;
+            var successfulWrites = 0;
+            var failedWrites = 0;
+            var frameSamples = [];
             var i;
             var entry;
+            var result;
             for (i = 0; i < projection.frames.length; i += 1) {
                 entry = registry[projection.frames[i].windowId];
                 if (entry && entry.windowRef) {
-                    writeFrame(entry.windowRef, projection.frames[i].frameGeometry);
+                    attemptedWrites += 1;
+                    result = writeFrame(entry.windowRef, projection.frames[i].frameGeometry);
+                    if (result && result.success) {
+                        successfulWrites += 1;
+                    } else {
+                        failedWrites += 1;
+                    }
+                    if (frameSamples.length < 5) {
+                        frameSamples.push({
+                            windowId: projection.frames[i].windowId,
+                            beforeFrame: result ? result.beforeFrame : null,
+                            requestedFrame: result ? result.requestedFrame : projection.frames[i].frameGeometry,
+                            afterFrame: result ? result.afterFrame : null,
+                            success: result ? result.success : false
+                        });
+                    }
                 }
             }
             lastProjection = projection;
+            lastActionDiagnostics = {
+                actionId: diagnostics && diagnostics.actionId ? diagnostics.actionId : null,
+                beforeFocusColumn: beforeSnapshot.focusColumn,
+                afterFocusColumn: afterSnapshot.focusColumn,
+                beforeScrollOffset: beforeSnapshot.scrollOffset,
+                afterScrollOffset: afterSnapshot.scrollOffset,
+                projectedFrameCount: projection.frames.length,
+                attemptedGeometryWriteCount: attemptedWrites,
+                successfulGeometryWriteCount: successfulWrites,
+                failedGeometryWriteCount: failedWrites,
+                frameSamples: frameSamples
+            };
             return projection;
         }
 
@@ -2732,11 +2818,12 @@
         function dispatchAction(actionName, scope) {
             var activeLocation = syncActiveWindow();
             var targetScope = defaultArrangeScope(scope);
+            var beforeSnapshot = workspaceArrangeSnapshot(targetScope);
             var fullscreenTarget = focusedRegistryEntry(targetScope);
             var location = dispatchRibbonAction(state, actionName, targetScope);
             if (location !== null && location !== undefined) {
                 applyFullscreenAction(actionName, fullscreenTarget);
-                arrange(targetScope);
+                arrange(targetScope, { actionId: actionName, beforeSnapshot: beforeSnapshot });
                 activateLocation(location || activeLocation);
             }
             return location;
@@ -2804,6 +2891,7 @@
                 runActionAvailable: true,
                 state: plainData(state),
                 knownWindows: knownWindowSnapshots(),
+                lastAction: lastActionDiagnostics ? plainData(lastActionDiagnostics) : null,
                 lastProjection: lastProjection ? plainData(lastProjection) : null
             };
         }
