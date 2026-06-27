@@ -84,6 +84,7 @@ assert.equal(registered[0].name, "name");
 assert.equal(registered[0].title, "title");
 assert.equal(registered[0].shortcut, "");
 assert.equal(api.readKWinOptions(env).gaps, 6);
+assert.equal(api.readKWinOptions(env).enableDefaultDevelopmentShortcuts, false);
 env.print("loaded");
 assert.equal(messages[messages.length - 1], "loaded");
 

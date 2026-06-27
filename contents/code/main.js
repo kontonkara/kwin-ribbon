@@ -19,6 +19,7 @@
         alwaysCenterSingleColumn: false,
         tileNewWindows: true,
         enableWindowManagementShortcuts: true,
+        enableDefaultDevelopmentShortcuts: false,
         debugLogging: false
     };
 
@@ -119,6 +120,7 @@
         out.alwaysCenterSingleColumn = out.alwaysCenterSingleColumn === true;
         out.tileNewWindows = out.tileNewWindows !== false;
         out.enableWindowManagementShortcuts = out.enableWindowManagementShortcuts !== false;
+        out.enableDefaultDevelopmentShortcuts = out.enableDefaultDevelopmentShortcuts === true;
         out.debugLogging = out.debugLogging === true;
 
         return out;
@@ -2000,23 +2002,48 @@
     }
 
     var RIBBON_ACTION_SPECS = [
-        { name: "kwin-ribbon-interactive-focus-column-left", title: "Ribbon: Focus column left", shortcut: "Meta+Alt+H", handler: scopedAction(focusColumnLeft) },
-        { name: "kwin-ribbon-interactive-focus-column-right", title: "Ribbon: Focus column right", shortcut: "Meta+Alt+L", handler: scopedAction(focusColumnRight) },
-        { name: "kwin-ribbon-interactive-focus-window-up", title: "Ribbon: Focus window up", shortcut: "Meta+Alt+K", handler: scopedAction(focusWindowUp) },
-        { name: "kwin-ribbon-interactive-focus-window-down", title: "Ribbon: Focus window down", shortcut: "Meta+Alt+J", handler: scopedAction(focusWindowDown) },
-        { name: "kwin-ribbon-interactive-move-column-left", title: "Ribbon: Move column left", shortcut: "Meta+Alt+Shift+H", handler: scopedAction(moveColumnLeft) },
-        { name: "kwin-ribbon-interactive-move-column-right", title: "Ribbon: Move column right", shortcut: "Meta+Alt+Shift+L", handler: scopedAction(moveColumnRight) },
-        { name: "kwin-ribbon-interactive-move-window-up", title: "Ribbon: Move window up", shortcut: "Meta+Alt+Shift+K", handler: scopedAction(moveWindowUp) },
-        { name: "kwin-ribbon-interactive-move-window-down", title: "Ribbon: Move window down", shortcut: "Meta+Alt+Shift+J", handler: scopedAction(moveWindowDown) },
-        { name: "kwin-ribbon-interactive-next-column-width", title: "Ribbon: Next column width", shortcut: "Meta+Alt+W", handler: switchColumnWidthAction },
-        { name: "kwin-ribbon-interactive-previous-column-width", title: "Ribbon: Previous column width", shortcut: "Meta+Alt+Shift+W", handler: switchColumnWidthBackAction },
-        { name: "kwin-ribbon-interactive-maximize-column", title: "Ribbon: Maximize column", shortcut: "Meta+Alt+M", handler: scopedAction(toggleColumnFullWidth) },
-        { name: "kwin-ribbon-interactive-fullscreen-window", title: "Ribbon: Fullscreen window", shortcut: "Meta+Alt+F", handler: fullscreenWindowAction },
-        { name: "kwin-ribbon-interactive-toggle-floating", title: "Ribbon: Toggle floating", shortcut: "Meta+Alt+Space", handler: floatingWindowAction },
-        { name: "kwin-ribbon-interactive-center-column", title: "Ribbon: Center column", shortcut: "Meta+Alt+C", handler: centerColumnAction }
+        { name: "kwin-ribbon-focus-column-left", title: "KWin Ribbon: Focus Column Left", handler: scopedAction(focusColumnLeft) },
+        { name: "kwin-ribbon-focus-column-right", title: "KWin Ribbon: Focus Column Right", handler: scopedAction(focusColumnRight) },
+        { name: "kwin-ribbon-focus-window-up", title: "KWin Ribbon: Focus Window Up", handler: scopedAction(focusWindowUp) },
+        { name: "kwin-ribbon-focus-window-down", title: "KWin Ribbon: Focus Window Down", handler: scopedAction(focusWindowDown) },
+        { name: "kwin-ribbon-move-column-left", title: "KWin Ribbon: Move Column Left", handler: scopedAction(moveColumnLeft) },
+        { name: "kwin-ribbon-move-column-right", title: "KWin Ribbon: Move Column Right", handler: scopedAction(moveColumnRight) },
+        { name: "kwin-ribbon-move-window-up", title: "KWin Ribbon: Move Window Up", handler: scopedAction(moveWindowUp) },
+        { name: "kwin-ribbon-move-window-down", title: "KWin Ribbon: Move Window Down", handler: scopedAction(moveWindowDown) },
+        { name: "kwin-ribbon-next-column-width", title: "KWin Ribbon: Next Column Width", handler: switchColumnWidthAction },
+        { name: "kwin-ribbon-previous-column-width", title: "KWin Ribbon: Previous Column Width", handler: switchColumnWidthBackAction },
+        { name: "kwin-ribbon-maximize-column", title: "KWin Ribbon: Maximize Column", handler: scopedAction(toggleColumnFullWidth) },
+        { name: "kwin-ribbon-fullscreen-window", title: "KWin Ribbon: Fullscreen Window", handler: fullscreenWindowAction },
+        { name: "kwin-ribbon-toggle-floating", title: "KWin Ribbon: Toggle Floating", handler: floatingWindowAction },
+        { name: "kwin-ribbon-center-column", title: "KWin Ribbon: Center Column", handler: centerColumnAction }
     ];
 
-    function getRibbonActionSpecs() {
+    var RIBBON_DEVELOPMENT_SHORTCUTS = {
+        "kwin-ribbon-focus-column-left": "Meta+Alt+H",
+        "kwin-ribbon-focus-column-right": "Meta+Alt+L",
+        "kwin-ribbon-focus-window-up": "Meta+Alt+K",
+        "kwin-ribbon-focus-window-down": "Meta+Alt+J",
+        "kwin-ribbon-move-column-left": "Meta+Alt+Shift+H",
+        "kwin-ribbon-move-column-right": "Meta+Alt+Shift+L",
+        "kwin-ribbon-move-window-up": "Meta+Alt+Shift+K",
+        "kwin-ribbon-move-window-down": "Meta+Alt+Shift+J",
+        "kwin-ribbon-next-column-width": "Meta+Alt+W",
+        "kwin-ribbon-previous-column-width": "Meta+Alt+Shift+W",
+        "kwin-ribbon-maximize-column": "Meta+Alt+M",
+        "kwin-ribbon-fullscreen-window": "Meta+Alt+F",
+        "kwin-ribbon-toggle-floating": "Meta+Alt+Space",
+        "kwin-ribbon-center-column": "Meta+Alt+C"
+    };
+
+    function actionShortcut(name, options) {
+        var opts = options || {};
+        if (opts.enableDefaultDevelopmentShortcuts === true) {
+            return RIBBON_DEVELOPMENT_SHORTCUTS[name] || "";
+        }
+        return "";
+    }
+
+    function getRibbonActionSpecs(options) {
         var result = [];
         var i;
         var spec;
@@ -2025,7 +2052,7 @@
             result.push({
                 name: spec.name,
                 title: spec.title,
-                shortcut: spec.shortcut
+                shortcut: actionShortcut(spec.name, options)
             });
         }
         return result;
@@ -2413,6 +2440,7 @@
             alwaysCenterSingleColumn: read("alwaysCenterSingleColumn", DEFAULTS.alwaysCenterSingleColumn),
             tileNewWindows: read("tileNewWindows", DEFAULTS.tileNewWindows),
             enableWindowManagementShortcuts: read("enableWindowManagementShortcuts", DEFAULTS.enableWindowManagementShortcuts),
+            enableDefaultDevelopmentShortcuts: read("enableDefaultDevelopmentShortcuts", DEFAULTS.enableDefaultDevelopmentShortcuts),
             debugLogging: read("debugLogging", DEFAULTS.debugLogging)
         });
     }
@@ -2494,6 +2522,7 @@
         var started = false;
         var lastProjection = null;
         var shortcutsRegistered = false;
+        var shortcutRegistrations = [];
 
         function classify(windowRef, fallbackId) {
             return classifyWindow(windowRef, { fallbackId: fallbackId });
@@ -2690,7 +2719,7 @@
 
         function applyFullscreenAction(actionName, entry) {
             var id;
-            if (actionName !== "kwin-ribbon-interactive-fullscreen-window" || !entry || !entry.windowRef || typeof adapterEnv.setWindowFullscreen !== "function") {
+            if (actionName !== "kwin-ribbon-fullscreen-window" || !entry || !entry.windowRef || typeof adapterEnv.setWindowFullscreen !== "function") {
                 return false;
             }
             id = entry.classification && entry.classification.windowId;
@@ -2722,7 +2751,8 @@
                 return false;
             }
             shortcutsRegistered = true;
-            specs = getRibbonActionSpecs();
+            shortcutRegistrations = [];
+            specs = getRibbonActionSpecs(options);
             for (i = 0; i < specs.length; i += 1) {
                 spec = specs[i];
                 registered = adapterEnv.registerShortcut(spec.name, spec.title, spec.shortcut, (function (actionName) {
@@ -2730,6 +2760,12 @@
                         dispatchAction(actionName);
                     };
                 }(spec.name)));
+                shortcutRegistrations.push({
+                    name: spec.name,
+                    title: spec.title,
+                    shortcut: spec.shortcut,
+                    registered: registered !== false
+                });
                 adapterDebugLog(adapterEnv, options, "kwin-ribbon shortcut action=" + spec.name + " default=" + spec.shortcut + " registered=" + (registered === false ? "false" : "true"));
             }
             return true;
@@ -2764,7 +2800,7 @@
             return {
                 version: VERSION,
                 options: plainData(options),
-                actions: getRibbonActionSpecs(),
+                actions: plainData(shortcutRegistrations.length > 0 ? shortcutRegistrations : getRibbonActionSpecs(options)),
                 runActionAvailable: true,
                 state: plainData(state),
                 knownWindows: knownWindowSnapshots(),

@@ -40,6 +40,7 @@
         var started = false;
         var lastProjection = null;
         var shortcutsRegistered = false;
+        var shortcutRegistrations = [];
 
         function classify(windowRef, fallbackId) {
             return classifyWindow(windowRef, { fallbackId: fallbackId });
@@ -236,7 +237,7 @@
 
         function applyFullscreenAction(actionName, entry) {
             var id;
-            if (actionName !== "kwin-ribbon-interactive-fullscreen-window" || !entry || !entry.windowRef || typeof adapterEnv.setWindowFullscreen !== "function") {
+            if (actionName !== "kwin-ribbon-fullscreen-window" || !entry || !entry.windowRef || typeof adapterEnv.setWindowFullscreen !== "function") {
                 return false;
             }
             id = entry.classification && entry.classification.windowId;
@@ -268,7 +269,8 @@
                 return false;
             }
             shortcutsRegistered = true;
-            specs = getRibbonActionSpecs();
+            shortcutRegistrations = [];
+            specs = getRibbonActionSpecs(options);
             for (i = 0; i < specs.length; i += 1) {
                 spec = specs[i];
                 registered = adapterEnv.registerShortcut(spec.name, spec.title, spec.shortcut, (function (actionName) {
@@ -276,6 +278,12 @@
                         dispatchAction(actionName);
                     };
                 }(spec.name)));
+                shortcutRegistrations.push({
+                    name: spec.name,
+                    title: spec.title,
+                    shortcut: spec.shortcut,
+                    registered: registered !== false
+                });
                 adapterDebugLog(adapterEnv, options, "kwin-ribbon shortcut action=" + spec.name + " default=" + spec.shortcut + " registered=" + (registered === false ? "false" : "true"));
             }
             return true;
@@ -310,7 +318,7 @@
             return {
                 version: VERSION,
                 options: plainData(options),
-                actions: getRibbonActionSpecs(),
+                actions: plainData(shortcutRegistrations.length > 0 ? shortcutRegistrations : getRibbonActionSpecs(options)),
                 runActionAvailable: true,
                 state: plainData(state),
                 knownWindows: knownWindowSnapshots(),

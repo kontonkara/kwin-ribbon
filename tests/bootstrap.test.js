@@ -75,7 +75,7 @@ windowAdded.emit(windows[2]);
 assert.equal(sandbox.__kwinRibbonAdapter.state.windowIndex["boot-3"].columnIndex, 1);
 assert.equal(windows[2].frameGeometry.width, 200);
 
-sandbox.kwinRibbonRunAction("kwin-ribbon-interactive-focus-column-right");
+sandbox.kwinRibbonRunAction("kwin-ribbon-focus-column-right");
 assert.equal(sandbox.__kwinRibbonAdapter.state.lastTiledWindowId, "boot-3");
 
 assert.doesNotThrow(() => currentDesktopChanged.emit());

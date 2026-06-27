@@ -10,6 +10,7 @@
         alwaysCenterSingleColumn: false,
         tileNewWindows: true,
         enableWindowManagementShortcuts: true,
+        enableDefaultDevelopmentShortcuts: false,
         debugLogging: false
     };
 
@@ -110,6 +111,7 @@
         out.alwaysCenterSingleColumn = out.alwaysCenterSingleColumn === true;
         out.tileNewWindows = out.tileNewWindows !== false;
         out.enableWindowManagementShortcuts = out.enableWindowManagementShortcuts !== false;
+        out.enableDefaultDevelopmentShortcuts = out.enableDefaultDevelopmentShortcuts === true;
         out.debugLogging = out.debugLogging === true;
 
         return out;

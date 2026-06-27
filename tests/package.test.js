@@ -23,4 +23,5 @@ assert.equal(metadata["X-Plasma-API"], "javascript");
 assert.equal(metadata["X-Plasma-MainScript"], "code/main.js");
 assert.match(config, /<entry name="debugLogging" type="Bool">/);
 assert.match(config, /<entry name="enableWindowManagementShortcuts" type="Bool">/);
+assert.match(config, /<entry name="enableDefaultDevelopmentShortcuts" type="Bool">/);
 assert.match(mainScript, /root\.KWinRibbon = createApi\(\);/);

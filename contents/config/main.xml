@@ -41,6 +41,10 @@
       <label>Enable window management shortcuts</label>
       <default>true</default>
     </entry>
+    <entry name="enableDefaultDevelopmentShortcuts" type="Bool">
+      <label>Enable default development shortcuts</label>
+      <default>false</default>
+    </entry>
     <entry name="debugLogging" type="Bool">
       <label>Enable debug logging</label>
       <default>false</default>

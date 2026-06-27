@@ -28,6 +28,7 @@ assert.deepEqual(plain(api.copyOptions({
   alwaysCenterSingleColumn: true,
   tileNewWindows: false,
   enableWindowManagementShortcuts: false,
+  enableDefaultDevelopmentShortcuts: true,
   debugLogging: true
 })), {
   gaps: 0,
@@ -39,6 +40,7 @@ assert.deepEqual(plain(api.copyOptions({
   alwaysCenterSingleColumn: true,
   tileNewWindows: false,
   enableWindowManagementShortcuts: false,
+  enableDefaultDevelopmentShortcuts: true,
   debugLogging: true
 });
 
@@ -53,6 +55,7 @@ assert.deepEqual(plain(api.createState({ centerFocusedColumn: "invalid" })), {
     alwaysCenterSingleColumn: false,
     tileNewWindows: true,
     enableWindowManagementShortcuts: true,
+    enableDefaultDevelopmentShortcuts: false,
     debugLogging: false
   },
   outputs: {},

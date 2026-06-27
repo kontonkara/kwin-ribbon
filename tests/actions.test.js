@@ -18,23 +18,26 @@ function plain(value) {
 }
 
 const specs = api.getRibbonActionSpecs();
+const developmentSpecs = api.getRibbonActionSpecs({ enableDefaultDevelopmentShortcuts: true });
 
 assert.equal(specs.length > 0, true);
-assert.equal(specs.every((spec) => typeof spec.shortcut === "string" && spec.shortcut.length > 0), true);
-assert.equal(specs.every((spec) => spec.name.startsWith("kwin-ribbon-interactive-")), true);
-assert.equal(specs.some((spec) => spec.name === "kwin-ribbon-interactive-focus-column-left"), true);
-assert.equal(specs.some((spec) => spec.name === "kwin-ribbon-interactive-next-column-width"), true);
-assert.equal(specs.some((spec) => spec.name === "kwin-ribbon-interactive-previous-column-width"), true);
-assert.equal(specs.some((spec) => spec.name === "kwin-ribbon-interactive-maximize-column"), true);
-assert.equal(specs.some((spec) => spec.name === "kwin-ribbon-interactive-fullscreen-window"), true);
-assert.equal(specs.some((spec) => spec.name === "kwin-ribbon-interactive-toggle-floating"), true);
-assert.equal(specs.some((spec) => spec.name === "kwin-ribbon-interactive-center-column"), true);
+assert.equal(specs.every((spec) => spec.shortcut === ""), true);
+assert.equal(specs.every((spec) => spec.name.indexOf("interactive") < 0), true);
+assert.equal(specs.some((spec) => spec.name === "kwin-ribbon-focus-column-left" && spec.title === "KWin Ribbon: Focus Column Left"), true);
+assert.equal(specs.some((spec) => spec.name === "kwin-ribbon-next-column-width"), true);
+assert.equal(specs.some((spec) => spec.name === "kwin-ribbon-previous-column-width"), true);
+assert.equal(specs.some((spec) => spec.name === "kwin-ribbon-maximize-column"), true);
+assert.equal(specs.some((spec) => spec.name === "kwin-ribbon-fullscreen-window"), true);
+assert.equal(specs.some((spec) => spec.name === "kwin-ribbon-toggle-floating"), true);
+assert.equal(specs.some((spec) => spec.name === "kwin-ribbon-center-column"), true);
+assert.equal(developmentSpecs.some((spec) => spec.name === "kwin-ribbon-focus-column-left" && spec.shortcut === "Meta+Alt+H"), true);
+assert.equal(developmentSpecs.some((spec) => spec.shortcut.length > 0), true);
 
 const state = api.createState();
 api.addWindow(state, "screen-1", 0, "one");
 api.addWindow(state, "screen-1", 0, "two");
 
-assert.deepEqual(plain(api.dispatchRibbonAction(state, "kwin-ribbon-interactive-focus-column-left", {
+assert.deepEqual(plain(api.dispatchRibbonAction(state, "kwin-ribbon-focus-column-left", {
   outputId: "screen-1",
   workspaceIndex: 0
 })), {
@@ -45,24 +48,24 @@ assert.deepEqual(plain(api.dispatchRibbonAction(state, "kwin-ribbon-interactive-
 });
 assert.equal(api.dispatchRibbonAction(state, "unknown-action", { outputId: "screen-1" }), null);
 
-api.dispatchRibbonAction(state, "kwin-ribbon-interactive-maximize-column", { outputId: "screen-1", workspaceIndex: 0 });
+api.dispatchRibbonAction(state, "kwin-ribbon-maximize-column", { outputId: "screen-1", workspaceIndex: 0 });
 assert.equal(api.getWorkspace(state, "screen-1", 0).columns[0].fullWidth, true);
 
-api.dispatchRibbonAction(state, "kwin-ribbon-interactive-center-column", {
+api.dispatchRibbonAction(state, "kwin-ribbon-center-column", {
   outputId: "screen-1",
   workspaceIndex: 0,
   area: { width: 300, height: 100 }
 });
 assert.equal(api.getWorkspace(state, "screen-1", 0).scrollOffset, 0);
 
-api.dispatchRibbonAction(state, "kwin-ribbon-interactive-next-column-width", { outputId: "screen-1", workspaceIndex: 0 });
+api.dispatchRibbonAction(state, "kwin-ribbon-next-column-width", { outputId: "screen-1", workspaceIndex: 0 });
 assert.equal(api.getWorkspace(state, "screen-1", 0).columns[0].presetWidthIndex, 0);
-api.dispatchRibbonAction(state, "kwin-ribbon-interactive-previous-column-width", { outputId: "screen-1", workspaceIndex: 0 });
+api.dispatchRibbonAction(state, "kwin-ribbon-previous-column-width", { outputId: "screen-1", workspaceIndex: 0 });
 assert.equal(api.getWorkspace(state, "screen-1", 0).columns[0].presetWidthIndex, 2);
 
-api.dispatchRibbonAction(state, "kwin-ribbon-interactive-fullscreen-window", { outputId: "screen-1", workspaceIndex: 0 });
+api.dispatchRibbonAction(state, "kwin-ribbon-fullscreen-window", { outputId: "screen-1", workspaceIndex: 0 });
 assert.equal(state.fullscreen.one, true);
 assert.equal(state.windowIndex.one, undefined);
 
-api.dispatchRibbonAction(state, "kwin-ribbon-interactive-toggle-floating", { outputId: "screen-1", workspaceIndex: 0 });
+api.dispatchRibbonAction(state, "kwin-ribbon-toggle-floating", { outputId: "screen-1", workspaceIndex: 0 });
 assert.equal(state.floating.two, true);

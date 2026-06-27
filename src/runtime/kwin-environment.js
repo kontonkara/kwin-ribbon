@@ -361,6 +361,7 @@
             alwaysCenterSingleColumn: read("alwaysCenterSingleColumn", DEFAULTS.alwaysCenterSingleColumn),
             tileNewWindows: read("tileNewWindows", DEFAULTS.tileNewWindows),
             enableWindowManagementShortcuts: read("enableWindowManagementShortcuts", DEFAULTS.enableWindowManagementShortcuts),
+            enableDefaultDevelopmentShortcuts: read("enableDefaultDevelopmentShortcuts", DEFAULTS.enableDefaultDevelopmentShortcuts),
             debugLogging: read("debugLogging", DEFAULTS.debugLogging)
         });
     }
