@@ -1935,7 +1935,9 @@
         var workspace = getWorkspace(state, outputId, workspaceIndex);
         var area = normalizeArea(value.area);
         var gap = scrollGap(state, value.gap);
-        updateScrollOffsetForFocus(state, outputId, workspaceIndex, area.width, { gap: gap });
+        if (value.preserveScrollOffset !== true) {
+            updateScrollOffsetForFocus(state, outputId, workspaceIndex, area.width, { gap: gap });
+        }
         var metrics = computeColumnMetrics(state, outputId, workspaceIndex, area.width, gap);
         var frames = [];
         var i;
@@ -2520,6 +2522,7 @@
         var options = copyOptions(rawOptions);
         var state = createState(options);
         var registry = emptyMap();
+        var skippedRegistry = emptyMap();
         var started = false;
         var lastProjection = null;
         var shortcutsRegistered = false;
@@ -2542,16 +2545,26 @@
 
         function handleWindowAdded(windowRef) {
             var info = classify(windowRef);
-            if (!info.windowId || !info.manageable) {
+            if (!info.windowId) {
                 return info;
             }
+            if (!info.manageable) {
+                skippedRegistry[info.windowId] = info;
+                if (registry[info.windowId] || state.windowIndex[info.windowId] || state.parked[info.windowId]) {
+                    delete registry[info.windowId];
+                    removeWindow(state, info.windowId);
+                }
+                return info;
+            }
+            delete skippedRegistry[info.windowId];
             remember(windowRef, info);
             if (info.action === "tile") {
-                if (state.fullscreen[info.windowId]) {
-                    setWindowFullscreen(state, info.windowId, false);
-                }
-                if (options.tileNewWindows !== false && !state.floating[info.windowId]) {
-                    addWindow(state, info.outputId, info.workspaceIndex, info.windowId);
+                if (options.tileNewWindows !== false && !state.floating[info.windowId] && !state.fullscreen[info.windowId]) {
+                    if (state.parked[info.windowId]) {
+                        restoreWindow(state, info.windowId);
+                    } else {
+                        addWindow(state, info.outputId, info.workspaceIndex, info.windowId);
+                    }
                 }
             } else if (info.action === "fullscreen") {
                 setWindowFullscreen(state, info.windowId, true);
@@ -2665,15 +2678,38 @@
                 workspaceIndex: workspaceIndex,
                 windowId: value.windowId || (activeInfo && activeInfo.windowId),
                 area: area || { x: 0, y: 0, width: 1, height: 1 },
-                gap: value.gap
+                gap: value.gap,
+                preserveScrollOffset: value.preserveScrollOffset === true
             };
         }
 
         function workspaceArrangeSnapshot(scope) {
             var workspace = getWorkspace(state, actionOutputId(scope), actionWorkspaceIndex(scope));
             return {
+                outputId: actionOutputId(scope),
+                workspaceIndex: actionWorkspaceIndex(scope),
                 focusColumn: workspace.focusColumn,
-                scrollOffset: workspace.scrollOffset
+                scrollOffset: workspace.scrollOffset,
+                focusedModelWindowId: focusedWindowId(workspace)
+            };
+        }
+
+        function currentRuntimeSnapshot() {
+            var active = adapterActiveWindow(adapterEnv);
+            var activeInfo = active ? classify(active) : null;
+            var outputId = (activeInfo && activeInfo.outputId) || "default";
+            var workspaceIndex = activeInfo ? activeInfo.workspaceIndex : 0;
+            var workspace = getWorkspace(state, outputId, workspaceIndex);
+            var activeId = activeInfo && activeInfo.windowId;
+            return {
+                activeKWinWindowId: activeId || null,
+                activeKWinWindowReason: activeInfo ? activeInfo.reason : null,
+                activeKWinWindowKnown: activeId ? !!registry[activeId] : false,
+                outputId: outputId,
+                workspaceIndex: workspaceIndex,
+                focusColumn: workspace.focusColumn,
+                scrollOffset: workspace.scrollOffset,
+                focusedModelWindowId: focusedWindowId(workspace)
             };
         }
 
@@ -2762,8 +2798,15 @@
             lastProjection = projection;
             lastActionDiagnostics = {
                 actionId: diagnostics && diagnostics.actionId ? diagnostics.actionId : null,
+                activeKWinWindowId: diagnostics && diagnostics.activeKWinWindowId ? diagnostics.activeKWinWindowId : null,
+                activeKWinWindowReason: diagnostics && diagnostics.activeKWinWindowReason ? diagnostics.activeKWinWindowReason : null,
+                activeKWinWindowKnown: diagnostics && diagnostics.activeKWinWindowKnown === true,
+                outputId: afterSnapshot.outputId,
+                workspaceIndex: afterSnapshot.workspaceIndex,
                 beforeFocusColumn: beforeSnapshot.focusColumn,
                 afterFocusColumn: afterSnapshot.focusColumn,
+                beforeFocusedModelWindowId: beforeSnapshot.focusedModelWindowId,
+                afterFocusedModelWindowId: afterSnapshot.focusedModelWindowId,
                 beforeScrollOffset: beforeSnapshot.scrollOffset,
                 afterScrollOffset: afterSnapshot.scrollOffset,
                 projectedFrameCount: projection.frames.length,
@@ -2816,14 +2859,23 @@
         }
 
         function dispatchAction(actionName, scope) {
-            var activeLocation = syncActiveWindow();
+            var active = adapterActiveWindow(adapterEnv);
+            var activeInfo = active ? classify(active) : null;
+            var activeLocation = handleActiveWindowChanged(active);
             var targetScope = defaultArrangeScope(scope);
             var beforeSnapshot = workspaceArrangeSnapshot(targetScope);
             var fullscreenTarget = focusedRegistryEntry(targetScope);
             var location = dispatchRibbonAction(state, actionName, targetScope);
             if (location !== null && location !== undefined) {
                 applyFullscreenAction(actionName, fullscreenTarget);
-                arrange(targetScope, { actionId: actionName, beforeSnapshot: beforeSnapshot });
+                targetScope.preserveScrollOffset = actionName === "kwin-ribbon-center-column";
+                arrange(targetScope, {
+                    actionId: actionName,
+                    activeKWinWindowId: activeInfo && activeInfo.windowId,
+                    activeKWinWindowReason: activeInfo && activeInfo.reason,
+                    activeKWinWindowKnown: !!(activeInfo && activeInfo.windowId && registry[activeInfo.windowId]),
+                    beforeSnapshot: beforeSnapshot
+                });
                 activateLocation(location || activeLocation);
             }
             return location;
@@ -2883,14 +2935,37 @@
             return result;
         }
 
+        function skippedWindowSnapshots() {
+            var result = [];
+            var id;
+            var info;
+            for (id in skippedRegistry) {
+                if (hasOwn(skippedRegistry, id)) {
+                    info = skippedRegistry[id];
+                    result.push({
+                        windowId: info.windowId,
+                        outputId: info.outputId,
+                        workspaceIndex: info.workspaceIndex,
+                        action: info.action,
+                        reason: info.reason,
+                        manageable: info.manageable,
+                        fullscreen: info.fullscreen
+                    });
+                }
+            }
+            return result;
+        }
+
         function debugSnapshot() {
             return {
                 version: VERSION,
                 options: plainData(options),
                 actions: plainData(shortcutRegistrations.length > 0 ? shortcutRegistrations : getRibbonActionSpecs(options)),
                 runActionAvailable: true,
+                runtime: plainData(currentRuntimeSnapshot()),
                 state: plainData(state),
                 knownWindows: knownWindowSnapshots(),
+                skippedWindows: skippedWindowSnapshots(),
                 lastAction: lastActionDiagnostics ? plainData(lastActionDiagnostics) : null,
                 lastProjection: lastProjection ? plainData(lastProjection) : null
             };
@@ -2899,6 +2974,7 @@
         return {
             state: state,
             registry: registry,
+            skippedRegistry: skippedRegistry,
             options: options,
             start: start,
             syncWindows: syncWindows,

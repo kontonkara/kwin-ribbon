@@ -52,6 +52,20 @@ assert.equal(adapter.registry.one, undefined);
 assert.equal(adapter.state.windowIndex.one, undefined);
 assert.deepEqual(plain(api.getWorkspace(adapter.state, "HDMI-A-1", 0).columns.map((column) => column.windows)), [["two"]]);
 
+adapter.handleWindowAdded({ internalId: "two", output: { name: "HDMI-A-1" }, dock: true });
+assert.equal(adapter.registry.two, undefined);
+assert.equal(adapter.state.windowIndex.two, undefined);
+assert.equal(adapter.skippedRegistry.two.reason, "special-window");
+assert.equal(adapter.debugSnapshot().skippedWindows.some((entry) => entry.windowId === "two" && entry.reason === "special-window"), true);
+
+const parkedAdapter = api.createKWinAdapter({}, { tileNewWindows: true });
+const parkedWindow = { internalId: "parked", output: "screen-1" };
+parkedAdapter.handleWindowAdded(parkedWindow);
+api.parkWindow(parkedAdapter.state, "parked", "temporarily-unavailable");
+parkedAdapter.handleWindowAdded(parkedWindow);
+assert.equal(parkedAdapter.state.windowIndex.parked.columnIndex, 0);
+assert.deepEqual(plain(api.getWorkspace(parkedAdapter.state, "screen-1", 0).columns.map((column) => column.windows)), [["parked"]]);
+
 const windowAdded = signal();
 const windowRemoved = signal();
 const activeWindowChanged = signal();
@@ -132,8 +146,14 @@ assert.equal(scrollWorkspace.scrollOffset, 100);
 assert.notDeepEqual(scrollFocusedFrames, scrollInitialFrames);
 assert.deepEqual(scrollFocusedFrames.map((frame) => frame.frameGeometry.x), [-100, 0, 100]);
 assert.equal(scrollSnapshot.lastAction.actionId, "kwin-ribbon-focus-column-right");
+assert.equal(scrollSnapshot.lastAction.activeKWinWindowId, "scroll-1");
+assert.equal(scrollSnapshot.lastAction.activeKWinWindowKnown, true);
+assert.equal(scrollSnapshot.lastAction.outputId, "screen-1");
+assert.equal(scrollSnapshot.lastAction.workspaceIndex, 0);
 assert.equal(scrollSnapshot.lastAction.beforeFocusColumn, 0);
 assert.equal(scrollSnapshot.lastAction.afterFocusColumn, 1);
+assert.equal(scrollSnapshot.lastAction.beforeFocusedModelWindowId, "scroll-1");
+assert.equal(scrollSnapshot.lastAction.afterFocusedModelWindowId, "scroll-2");
 assert.equal(scrollSnapshot.lastAction.beforeScrollOffset, 0);
 assert.equal(scrollSnapshot.lastAction.afterScrollOffset, 100);
 assert.equal(scrollSnapshot.lastAction.projectedFrameCount, 3);
@@ -175,6 +195,7 @@ assert.equal(actionAdapter.debugSnapshot().lastAction.projectedFrameCount, 2);
 
 const fullscreenTarget = { internalId: "fullscreen-target", output: "screen-1", fullScreen: false };
 const fullscreenAdapter = api.createKWinAdapter({
+  getWindows: () => [fullscreenTarget],
   getActiveWindow: () => fullscreenTarget,
   setWindowFullscreen: (windowRef, enabled) => {
     windowRef.fullScreen = enabled;
@@ -185,6 +206,10 @@ const fullscreenAdapter = api.createKWinAdapter({
 fullscreenAdapter.handleWindowAdded(fullscreenTarget);
 fullscreenAdapter.dispatchAction("kwin-ribbon-fullscreen-window", { outputId: "screen-1", workspaceIndex: 0 });
 assert.equal(fullscreenTarget.fullScreen, true);
+fullscreenTarget.fullScreen = false;
+fullscreenAdapter.syncWindows();
+assert.equal(fullscreenAdapter.state.fullscreen["fullscreen-target"], true);
+assert.equal(fullscreenAdapter.state.windowIndex["fullscreen-target"], undefined);
 fullscreenAdapter.dispatchAction("kwin-ribbon-fullscreen-window", { outputId: "screen-1", workspaceIndex: 0 });
 assert.equal(fullscreenTarget.fullScreen, false);
 
@@ -202,6 +227,17 @@ floatingAdapter.syncWindows();
 assert.equal(floatingAdapter.state.windowIndex["floating-target"], undefined);
 floatingAdapter.dispatchAction("kwin-ribbon-toggle-floating", { outputId: "screen-1", workspaceIndex: 0 });
 assert.equal(floatingAdapter.state.windowIndex["floating-target"].columnIndex, 0);
+
+const centerWindow = { internalId: "center-target", output: "screen-1" };
+const centerAdapter = api.createKWinAdapter({
+  getActiveWindow: () => centerWindow,
+  getArrangeArea: () => ({ x: 0, y: 0, width: 100, height: 100 })
+});
+centerAdapter.handleWindowAdded(centerWindow);
+api.setColumnWidth(centerAdapter.state, "screen-1", 0, 0.5);
+centerAdapter.dispatchAction("kwin-ribbon-center-column", { outputId: "screen-1", workspaceIndex: 0 });
+assert.equal(api.getWorkspace(centerAdapter.state, "screen-1", 0).scrollOffset, -25);
+assert.equal(centerAdapter.lastProjection().frames[0].frameGeometry.x, 25);
 
 const disabledAdapter = api.createKWinAdapter({ registerShortcut: () => registered.push("disabled") }, { enableWindowManagementShortcuts: false });
 assert.equal(disabledAdapter.registerShortcuts(), false);
@@ -226,6 +262,7 @@ assert.equal(developmentRegistered.some((entry) => entry.name === "kwin-ribbon-f
 
 const snapshotWindow = { internalId: "snap", output: "screen-1", caption: "not included" };
 const snapshotAdapter = api.createKWinAdapter({
+  getActiveWindow: () => snapshotWindow,
   getArrangeArea: () => ({ x: 0, y: 0, width: 100, height: 100 })
 });
 
@@ -235,6 +272,9 @@ const snapshot = snapshotAdapter.debugSnapshot();
 assert.equal(snapshot.version, "0.1.0");
 assert.equal(snapshot.actions.every((entry) => entry.shortcut === ""), true);
 assert.equal(snapshot.actions.some((entry) => entry.name === "kwin-ribbon-focus-column-left"), true);
+assert.equal(snapshot.runtime.activeKWinWindowId, "snap");
+assert.equal(snapshot.runtime.activeKWinWindowKnown, true);
+assert.equal(snapshot.runtime.focusedModelWindowId, "snap");
 assert.equal(snapshot.knownWindows.length, 1);
 assert.deepEqual(plain(snapshot.knownWindows[0]), {
   windowId: "snap",
