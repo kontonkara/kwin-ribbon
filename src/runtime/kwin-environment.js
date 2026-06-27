@@ -306,6 +306,17 @@
                     return false;
                 }
             },
+            raiseWindow: function (windowRef) {
+                try {
+                    if (typeof workspace.raiseWindow === "function") {
+                        workspace.raiseWindow(windowRef);
+                        return true;
+                    }
+                } catch (ignore) {
+                    return false;
+                }
+                return false;
+            },
             activateWindow: function (windowRef) {
                 try {
                     if (typeof workspace.activateWindow === "function") {

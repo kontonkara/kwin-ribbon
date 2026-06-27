@@ -2388,6 +2388,17 @@
                     return false;
                 }
             },
+            raiseWindow: function (windowRef) {
+                try {
+                    if (typeof workspace.raiseWindow === "function") {
+                        workspace.raiseWindow(windowRef);
+                        return true;
+                    }
+                } catch (ignore) {
+                    return false;
+                }
+                return false;
+            },
             activateWindow: function (windowRef) {
                 try {
                     if (typeof workspace.activateWindow === "function") {
@@ -2846,6 +2857,22 @@
             return id ? registry[id] || null : null;
         }
 
+        function presentFullscreenEntry(entry) {
+            if (!entry || !entry.windowRef) {
+                return false;
+            }
+            if (typeof adapterEnv.raiseWindow === "function" && adapterEnv.raiseWindow(entry.windowRef)) {
+                if (typeof adapterEnv.activateWindow === "function") {
+                    adapterEnv.activateWindow(entry.windowRef);
+                }
+                return true;
+            }
+            if (typeof adapterEnv.activateWindow === "function") {
+                return adapterEnv.activateWindow(entry.windowRef);
+            }
+            return false;
+        }
+
         function applyFullscreenAction(actionName, entry) {
             var id;
             if (actionName !== "kwin-ribbon-fullscreen-window" || !entry || !entry.windowRef || typeof adapterEnv.setWindowFullscreen !== "function") {
@@ -2858,6 +2885,11 @@
             return adapterEnv.setWindowFullscreen(entry.windowRef, state.fullscreen[id] === true);
         }
 
+        function fullscreenTargetEnabled(entry) {
+            var id = entry && entry.classification && entry.classification.windowId;
+            return !!(id && state.fullscreen[id]);
+        }
+
         function dispatchAction(actionName, scope) {
             var active = adapterActiveWindow(adapterEnv);
             var activeInfo = active ? classify(active) : null;
@@ -2865,9 +2897,11 @@
             var targetScope = defaultArrangeScope(scope);
             var beforeSnapshot = workspaceArrangeSnapshot(targetScope);
             var fullscreenTarget = focusedRegistryEntry(targetScope);
+            var fullscreenEnabled;
             var location = dispatchRibbonAction(state, actionName, targetScope);
             if (location !== null && location !== undefined) {
                 applyFullscreenAction(actionName, fullscreenTarget);
+                fullscreenEnabled = fullscreenTargetEnabled(fullscreenTarget);
                 targetScope.preserveScrollOffset = actionName === "kwin-ribbon-center-column";
                 arrange(targetScope, {
                     actionId: actionName,
@@ -2876,7 +2910,11 @@
                     activeKWinWindowKnown: !!(activeInfo && activeInfo.windowId && registry[activeInfo.windowId]),
                     beforeSnapshot: beforeSnapshot
                 });
-                activateLocation(location || activeLocation);
+                if (fullscreenEnabled) {
+                    presentFullscreenEntry(fullscreenTarget);
+                } else {
+                    activateLocation(location || activeLocation);
+                }
             }
             return location;
         }

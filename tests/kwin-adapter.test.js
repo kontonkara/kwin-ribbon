@@ -193,25 +193,44 @@ actionAdapter.dispatchAction("kwin-ribbon-next-column-width", { outputId: "scree
 assert.equal(actionAdapter.debugSnapshot().lastAction.actionId, "kwin-ribbon-next-column-width");
 assert.equal(actionAdapter.debugSnapshot().lastAction.projectedFrameCount, 2);
 
+const fullscreenSibling = { internalId: "fullscreen-sibling", output: "screen-1", frameGeometry: { x: 0, y: 0, width: 1, height: 1 } };
 const fullscreenTarget = { internalId: "fullscreen-target", output: "screen-1", fullScreen: false };
+const fullscreenRaised = [];
+const fullscreenActivated = [];
 const fullscreenAdapter = api.createKWinAdapter({
-  getWindows: () => [fullscreenTarget],
+  getWindows: () => [fullscreenSibling, fullscreenTarget],
   getActiveWindow: () => fullscreenTarget,
   setWindowFullscreen: (windowRef, enabled) => {
     windowRef.fullScreen = enabled;
     return true;
   },
+  raiseWindow: (windowRef) => {
+    fullscreenRaised.push(windowRef.internalId);
+    return true;
+  },
+  activateWindow: (windowRef) => {
+    fullscreenActivated.push(windowRef.internalId);
+    return true;
+  },
   getArrangeArea: () => ({ x: 0, y: 0, width: 100, height: 100 })
 });
+fullscreenAdapter.handleWindowAdded(fullscreenSibling);
 fullscreenAdapter.handleWindowAdded(fullscreenTarget);
 fullscreenAdapter.dispatchAction("kwin-ribbon-fullscreen-window", { outputId: "screen-1", workspaceIndex: 0 });
 assert.equal(fullscreenTarget.fullScreen, true);
+assert.equal(fullscreenAdapter.state.fullscreen["fullscreen-target"], true);
+assert.equal(fullscreenAdapter.state.windowIndex["fullscreen-target"], undefined);
+assert.equal(fullscreenSibling.frameGeometry.width, 100);
+assert.deepEqual(fullscreenRaised, ["fullscreen-target"]);
+assert.deepEqual(fullscreenActivated, ["fullscreen-target"]);
 fullscreenTarget.fullScreen = false;
 fullscreenAdapter.syncWindows();
 assert.equal(fullscreenAdapter.state.fullscreen["fullscreen-target"], true);
 assert.equal(fullscreenAdapter.state.windowIndex["fullscreen-target"], undefined);
 fullscreenAdapter.dispatchAction("kwin-ribbon-fullscreen-window", { outputId: "screen-1", workspaceIndex: 0 });
 assert.equal(fullscreenTarget.fullScreen, false);
+assert.equal(fullscreenAdapter.state.fullscreen["fullscreen-target"], undefined);
+assert.equal(fullscreenAdapter.state.windowIndex["fullscreen-target"].columnIndex, 1);
 
 const floatingTarget = { internalId: "floating-target", output: "screen-1" };
 const floatingAdapter = api.createKWinAdapter({
