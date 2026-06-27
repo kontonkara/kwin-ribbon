@@ -51,7 +51,11 @@ const newlyWiredActionNames = [
   "kwin-ribbon-previous-window-height",
   "kwin-ribbon-reset-window-height",
   "kwin-ribbon-reset-column-heights",
-  "kwin-ribbon-close-window"
+  "kwin-ribbon-close-window",
+  "kwin-ribbon-focus-window-or-column-up",
+  "kwin-ribbon-focus-window-or-column-down",
+  "kwin-ribbon-focus-workspace-up",
+  "kwin-ribbon-focus-workspace-down"
 ];
 
 const adapter = api.createKWinAdapter({}, { tileNewWindows: true });
@@ -395,6 +399,23 @@ assert.deepEqual(closeActionClosed, ["close-action-2"]);
 assert.equal(closeActionAdapter.registry["close-action-2"], undefined);
 assert.equal(closeActionAdapter.state.windowIndex["close-action-2"], undefined);
 assert.deepEqual(plain(api.getWorkspace(closeActionAdapter.state, "screen-1", 0).columns.map((column) => column.windows)), [["close-action-1"]]);
+
+const workspaceActionWindow = { internalId: "workspace-action", output: "screen-1" };
+const workspaceActionDirections = [];
+const workspaceActionAdapter = api.createKWinAdapter({
+  getWindows: () => [workspaceActionWindow],
+  getActiveWindow: () => workspaceActionWindow,
+  focusWorkspace: (direction) => {
+    workspaceActionDirections.push(direction);
+    return true;
+  },
+  getArrangeArea: () => ({ x: 0, y: 0, width: 100, height: 100 })
+});
+workspaceActionAdapter.syncWindows();
+assert.equal(workspaceActionAdapter.dispatchAction("kwin-ribbon-focus-workspace-up", { outputId: "screen-1", workspaceIndex: 0 }), true);
+assert.equal(workspaceActionAdapter.dispatchAction("kwin-ribbon-focus-workspace-down", { outputId: "screen-1", workspaceIndex: 0 }), true);
+assert.deepEqual(workspaceActionDirections, [-1, 1]);
+assert.equal(workspaceActionAdapter.debugSnapshot().lastAction.actionId, "kwin-ribbon-focus-workspace-down");
 
 const fullscreenSibling = { internalId: "fullscreen-sibling", output: "screen-1", frameGeometry: { x: 0, y: 0, width: 1, height: 1 } };
 const fullscreenTarget = { internalId: "fullscreen-target", output: "screen-1", fullScreen: false };

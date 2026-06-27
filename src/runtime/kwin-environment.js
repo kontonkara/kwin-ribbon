@@ -225,6 +225,102 @@
         return result;
     }
 
+    function workspaceDesktopCount(workspace, desktops) {
+        var value = firstDefined([
+            desktops && desktops.length > 0 ? desktops.length : undefined,
+            workspace && workspace.numberOfDesktops,
+            callIfFunction(workspace, "numberOfDesktops")
+        ]);
+        var count = parseInt(value, 10);
+        return isFinite(count) && count > 0 ? count : 0;
+    }
+
+    function workspaceCurrentDesktopIndex(workspace, desktops) {
+        var current = firstDefined([
+            workspace && workspace.currentDesktop,
+            workspace && workspace.currentVirtualDesktop,
+            workspace && workspace.activeDesktop
+        ]);
+        var number;
+        if (desktops && desktops.length > 0 && current && typeof current === "object") {
+            number = desktops.indexOf(current);
+            if (number >= 0) {
+                return number;
+            }
+        }
+        number = desktopNumberFromDesktop(current);
+        if (number !== null && number > 0) {
+            return number - 1;
+        }
+        return currentDesktopIndex(workspace);
+    }
+
+    function trySetDesktop(workspace, name, value) {
+        var result;
+        if (!workspace || typeof workspace[name] !== "function") {
+            return null;
+        }
+        try {
+            result = workspace[name](value);
+            return result !== false;
+        } catch (ignore) {
+            return false;
+        }
+    }
+
+    function assignDesktop(workspace, property, value) {
+        if (!workspace || workspace[property] === undefined) {
+            return false;
+        }
+        try {
+            workspace[property] = value;
+            return true;
+        } catch (ignore) {
+            return false;
+        }
+    }
+
+    function focusWorkspaceByDirection(workspace, direction) {
+        var desktops = workspaceDesktops(workspace);
+        var count = workspaceDesktopCount(workspace, desktops);
+        var currentIndex;
+        var targetIndex;
+        var targetDesktop;
+        var targetNumber;
+        var result;
+        if (count <= 0) {
+            return false;
+        }
+        currentIndex = workspaceCurrentDesktopIndex(workspace, desktops);
+        targetIndex = Math.max(0, Math.min(currentIndex + (direction < 0 ? -1 : 1), count - 1));
+        if (targetIndex === currentIndex) {
+            return false;
+        }
+        targetDesktop = desktops[targetIndex];
+        targetNumber = desktopNumberFromDesktop(targetDesktop) || targetIndex + 1;
+        if (targetDesktop) {
+            result = trySetDesktop(workspace, "setCurrentDesktop", targetDesktop);
+            if (result !== null) {
+                return result;
+            }
+            result = trySetDesktop(workspace, "setCurrentVirtualDesktop", targetDesktop);
+            if (result !== null) {
+                return result;
+            }
+            if (assignDesktop(workspace, "currentDesktop", targetDesktop) || assignDesktop(workspace, "currentVirtualDesktop", targetDesktop) || assignDesktop(workspace, "activeDesktop", targetDesktop)) {
+                return true;
+            }
+        }
+        result = trySetDesktop(workspace, "setCurrentDesktop", targetNumber);
+        if (result !== null) {
+            return result;
+        }
+        if (assignDesktop(workspace, "currentDesktop", targetNumber)) {
+            return true;
+        }
+        return false;
+    }
+
     function clientAreaOptions(root) {
         return [
             { name: "WorkArea", value: clientAreaKind(root, "WorkArea", 5) },
@@ -349,6 +445,9 @@
                     return false;
                 }
                 return false;
+            },
+            focusWorkspace: function (direction) {
+                return focusWorkspaceByDirection(workspace, parseInt(direction, 10) || 1);
             },
             closeWindow: function (windowRef) {
                 var result;

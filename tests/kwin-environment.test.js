@@ -106,6 +106,18 @@ assert.equal(registered.length, 1);
 assert.equal(registered[0].name, "name");
 assert.equal(registered[0].title, "title");
 assert.equal(registered[0].shortcut, "");
+
+const navDesktops = [{ x11DesktopNumber: 1 }, { x11DesktopNumber: 2 }, { x11DesktopNumber: 3 }];
+const navWorkspace = {
+  desktops: navDesktops,
+  currentDesktop: navDesktops[1]
+};
+const navEnv = api.createKWinEnvironment({ workspace: navWorkspace });
+assert.equal(navEnv.focusWorkspace(-1), true);
+assert.equal(navWorkspace.currentDesktop, navDesktops[0]);
+assert.equal(navEnv.focusWorkspace(-1), false);
+assert.equal(navEnv.focusWorkspace(1), true);
+assert.equal(navWorkspace.currentDesktop, navDesktops[1]);
 assert.equal(api.readKWinOptions(env).gaps, 6);
 assert.equal(api.readKWinOptions(env).enableDefaultDevelopmentShortcuts, false);
 env.print("loaded");

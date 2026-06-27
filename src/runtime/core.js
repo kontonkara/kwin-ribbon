@@ -976,6 +976,30 @@
         return focusWindowAt(state, outputId, workspaceIndex, (parseInt(index, 10) || 1) - 1);
     }
 
+    function focusWindowOrColumnUp(state, outputId, workspaceIndex) {
+        var workspace = getWorkspace(state, outputId, workspaceIndex);
+        var column = workspace.columns[clampIndex(workspace.focusColumn, workspace.columns.length)];
+        if (!column) {
+            return null;
+        }
+        if (clampIndex(column.focusWindow, column.windows.length) > 0) {
+            return focusWindowUp(state, outputId, workspaceIndex);
+        }
+        return focusColumnLeft(state, outputId, workspaceIndex);
+    }
+
+    function focusWindowOrColumnDown(state, outputId, workspaceIndex) {
+        var workspace = getWorkspace(state, outputId, workspaceIndex);
+        var column = workspace.columns[clampIndex(workspace.focusColumn, workspace.columns.length)];
+        if (!column) {
+            return null;
+        }
+        if (clampIndex(column.focusWindow, column.windows.length) < column.windows.length - 1) {
+            return focusWindowDown(state, outputId, workspaceIndex);
+        }
+        return focusColumnRight(state, outputId, workspaceIndex);
+    }
+
     function moveArrayItem(items, fromIndex, toIndex) {
         var item;
         if (fromIndex === toIndex) {
@@ -1663,6 +1687,8 @@
             focusTopWindow: focusTopWindow,
             focusBottomWindow: focusBottomWindow,
             focusWindowByIndex: focusWindowByIndex,
+            focusWindowOrColumnUp: focusWindowOrColumnUp,
+            focusWindowOrColumnDown: focusWindowOrColumnDown,
             moveColumnLeft: moveColumnLeft,
             moveColumnRight: moveColumnRight,
             moveColumnFirst: moveColumnFirst,

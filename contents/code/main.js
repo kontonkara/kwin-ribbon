@@ -985,6 +985,30 @@
         return focusWindowAt(state, outputId, workspaceIndex, (parseInt(index, 10) || 1) - 1);
     }
 
+    function focusWindowOrColumnUp(state, outputId, workspaceIndex) {
+        var workspace = getWorkspace(state, outputId, workspaceIndex);
+        var column = workspace.columns[clampIndex(workspace.focusColumn, workspace.columns.length)];
+        if (!column) {
+            return null;
+        }
+        if (clampIndex(column.focusWindow, column.windows.length) > 0) {
+            return focusWindowUp(state, outputId, workspaceIndex);
+        }
+        return focusColumnLeft(state, outputId, workspaceIndex);
+    }
+
+    function focusWindowOrColumnDown(state, outputId, workspaceIndex) {
+        var workspace = getWorkspace(state, outputId, workspaceIndex);
+        var column = workspace.columns[clampIndex(workspace.focusColumn, workspace.columns.length)];
+        if (!column) {
+            return null;
+        }
+        if (clampIndex(column.focusWindow, column.windows.length) < column.windows.length - 1) {
+            return focusWindowDown(state, outputId, workspaceIndex);
+        }
+        return focusColumnRight(state, outputId, workspaceIndex);
+    }
+
     function moveArrayItem(items, fromIndex, toIndex) {
         var item;
         if (fromIndex === toIndex) {
@@ -1672,6 +1696,8 @@
             focusTopWindow: focusTopWindow,
             focusBottomWindow: focusBottomWindow,
             focusWindowByIndex: focusWindowByIndex,
+            focusWindowOrColumnUp: focusWindowOrColumnUp,
+            focusWindowOrColumnDown: focusWindowOrColumnDown,
             moveColumnLeft: moveColumnLeft,
             moveColumnRight: moveColumnRight,
             moveColumnFirst: moveColumnFirst,
@@ -2016,6 +2042,10 @@
         return true;
     }
 
+    function workspaceAction() {
+        return true;
+    }
+
     var RIBBON_ACTION_SPECS = [
         { name: "kwin-ribbon-focus-column-left", title: "KWin Ribbon: Focus Column Left", handler: scopedAction(focusColumnLeft) },
         { name: "kwin-ribbon-focus-column-right", title: "KWin Ribbon: Focus Column Right", handler: scopedAction(focusColumnRight) },
@@ -2023,6 +2053,8 @@
         { name: "kwin-ribbon-focus-column-last", title: "KWin Ribbon: Focus Last Column", handler: scopedAction(focusLastColumn) },
         { name: "kwin-ribbon-focus-window-up", title: "KWin Ribbon: Focus Window Up", handler: scopedAction(focusWindowUp) },
         { name: "kwin-ribbon-focus-window-down", title: "KWin Ribbon: Focus Window Down", handler: scopedAction(focusWindowDown) },
+        { name: "kwin-ribbon-focus-window-or-column-up", title: "KWin Ribbon: Focus Window or Column Up", handler: scopedAction(focusWindowOrColumnUp) },
+        { name: "kwin-ribbon-focus-window-or-column-down", title: "KWin Ribbon: Focus Window or Column Down", handler: scopedAction(focusWindowOrColumnDown) },
         { name: "kwin-ribbon-focus-window-top", title: "KWin Ribbon: Focus Top Window", handler: scopedAction(focusTopWindow) },
         { name: "kwin-ribbon-focus-window-bottom", title: "KWin Ribbon: Focus Bottom Window", handler: scopedAction(focusBottomWindow) },
         { name: "kwin-ribbon-move-column-left", title: "KWin Ribbon: Move Column Left", handler: scopedAction(moveColumnLeft) },
@@ -2051,6 +2083,8 @@
         { name: "kwin-ribbon-fullscreen-window", title: "KWin Ribbon: Fullscreen Window", handler: fullscreenWindowAction },
         { name: "kwin-ribbon-toggle-floating", title: "KWin Ribbon: Toggle Floating", handler: floatingWindowAction },
         { name: "kwin-ribbon-close-window", title: "KWin Ribbon: Close Window", handler: closeWindowAction },
+        { name: "kwin-ribbon-focus-workspace-up", title: "KWin Ribbon: Focus Workspace Up", handler: workspaceAction },
+        { name: "kwin-ribbon-focus-workspace-down", title: "KWin Ribbon: Focus Workspace Down", handler: workspaceAction },
         { name: "kwin-ribbon-center-column", title: "KWin Ribbon: Center Column", handler: centerColumnAction }
     ];
 
@@ -2341,6 +2375,102 @@
         return result;
     }
 
+    function workspaceDesktopCount(workspace, desktops) {
+        var value = firstDefined([
+            desktops && desktops.length > 0 ? desktops.length : undefined,
+            workspace && workspace.numberOfDesktops,
+            callIfFunction(workspace, "numberOfDesktops")
+        ]);
+        var count = parseInt(value, 10);
+        return isFinite(count) && count > 0 ? count : 0;
+    }
+
+    function workspaceCurrentDesktopIndex(workspace, desktops) {
+        var current = firstDefined([
+            workspace && workspace.currentDesktop,
+            workspace && workspace.currentVirtualDesktop,
+            workspace && workspace.activeDesktop
+        ]);
+        var number;
+        if (desktops && desktops.length > 0 && current && typeof current === "object") {
+            number = desktops.indexOf(current);
+            if (number >= 0) {
+                return number;
+            }
+        }
+        number = desktopNumberFromDesktop(current);
+        if (number !== null && number > 0) {
+            return number - 1;
+        }
+        return currentDesktopIndex(workspace);
+    }
+
+    function trySetDesktop(workspace, name, value) {
+        var result;
+        if (!workspace || typeof workspace[name] !== "function") {
+            return null;
+        }
+        try {
+            result = workspace[name](value);
+            return result !== false;
+        } catch (ignore) {
+            return false;
+        }
+    }
+
+    function assignDesktop(workspace, property, value) {
+        if (!workspace || workspace[property] === undefined) {
+            return false;
+        }
+        try {
+            workspace[property] = value;
+            return true;
+        } catch (ignore) {
+            return false;
+        }
+    }
+
+    function focusWorkspaceByDirection(workspace, direction) {
+        var desktops = workspaceDesktops(workspace);
+        var count = workspaceDesktopCount(workspace, desktops);
+        var currentIndex;
+        var targetIndex;
+        var targetDesktop;
+        var targetNumber;
+        var result;
+        if (count <= 0) {
+            return false;
+        }
+        currentIndex = workspaceCurrentDesktopIndex(workspace, desktops);
+        targetIndex = Math.max(0, Math.min(currentIndex + (direction < 0 ? -1 : 1), count - 1));
+        if (targetIndex === currentIndex) {
+            return false;
+        }
+        targetDesktop = desktops[targetIndex];
+        targetNumber = desktopNumberFromDesktop(targetDesktop) || targetIndex + 1;
+        if (targetDesktop) {
+            result = trySetDesktop(workspace, "setCurrentDesktop", targetDesktop);
+            if (result !== null) {
+                return result;
+            }
+            result = trySetDesktop(workspace, "setCurrentVirtualDesktop", targetDesktop);
+            if (result !== null) {
+                return result;
+            }
+            if (assignDesktop(workspace, "currentDesktop", targetDesktop) || assignDesktop(workspace, "currentVirtualDesktop", targetDesktop) || assignDesktop(workspace, "activeDesktop", targetDesktop)) {
+                return true;
+            }
+        }
+        result = trySetDesktop(workspace, "setCurrentDesktop", targetNumber);
+        if (result !== null) {
+            return result;
+        }
+        if (assignDesktop(workspace, "currentDesktop", targetNumber)) {
+            return true;
+        }
+        return false;
+    }
+
     function clientAreaOptions(root) {
         return [
             { name: "WorkArea", value: clientAreaKind(root, "WorkArea", 5) },
@@ -2465,6 +2595,9 @@
                     return false;
                 }
                 return false;
+            },
+            focusWorkspace: function (direction) {
+                return focusWorkspaceByDirection(workspace, parseInt(direction, 10) || 1);
             },
             closeWindow: function (windowRef) {
                 var result;
@@ -3046,6 +3179,35 @@
             return closed;
         }
 
+        function workspaceActionDirection(actionName) {
+            if (actionName === "kwin-ribbon-focus-workspace-up") {
+                return -1;
+            }
+            if (actionName === "kwin-ribbon-focus-workspace-down") {
+                return 1;
+            }
+            return 0;
+        }
+
+        function focusWorkspaceAction(actionName, activeInfo, targetScope, beforeSnapshot) {
+            var direction = workspaceActionDirection(actionName);
+            var changed = false;
+            if (direction !== 0 && typeof adapterEnv.focusWorkspace === "function") {
+                changed = adapterEnv.focusWorkspace(direction) === true;
+            }
+            if (changed) {
+                syncWindows();
+                arrange(targetScope, {
+                    actionId: actionName,
+                    activeKWinWindowId: activeInfo && activeInfo.windowId,
+                    activeKWinWindowReason: activeInfo && activeInfo.reason,
+                    activeKWinWindowKnown: !!(activeInfo && activeInfo.windowId && registry[activeInfo.windowId]),
+                    beforeSnapshot: beforeSnapshot
+                });
+            }
+            return changed;
+        }
+
         function dispatchAction(actionName, scope) {
             var active = adapterActiveWindow(adapterEnv);
             var activeInfo = active ? classify(active) : null;
@@ -3058,6 +3220,9 @@
             if (location !== null && location !== undefined) {
                 if (actionName === "kwin-ribbon-close-window") {
                     return closeActiveWindow(active, activeInfo, targetScope, beforeSnapshot);
+                }
+                if (workspaceActionDirection(actionName) !== 0) {
+                    return focusWorkspaceAction(actionName, activeInfo, targetScope, beforeSnapshot);
                 }
                 applyFullscreenAction(actionName, fullscreenTarget);
                 fullscreenEnabled = fullscreenTargetEnabled(fullscreenTarget);

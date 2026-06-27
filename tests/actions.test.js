@@ -45,6 +45,12 @@ const heightActionNames = [
   "kwin-ribbon-reset-window-height",
   "kwin-ribbon-reset-column-heights"
 ];
+const wheelTargetActionNames = [
+  "kwin-ribbon-focus-window-or-column-up",
+  "kwin-ribbon-focus-window-or-column-down",
+  "kwin-ribbon-focus-workspace-up",
+  "kwin-ribbon-focus-workspace-down"
+];
 
 assert.equal(specs.length > 0, true);
 assert.equal(specs.every((spec) => spec.shortcut === ""), true);
@@ -60,6 +66,7 @@ assert.equal(specs.some((spec) => spec.name === "kwin-ribbon-center-column"), tr
 assert.equal(edgeActionNames.every((name) => specs.some((spec) => spec.name === name)), true);
 assert.equal(mutationActionNames.every((name) => specs.some((spec) => spec.name === name)), true);
 assert.equal(heightActionNames.every((name) => specs.some((spec) => spec.name === name)), true);
+assert.equal(wheelTargetActionNames.every((name) => specs.some((spec) => spec.name === name)), true);
 assert.equal(developmentSpecs.some((spec) => spec.name === "kwin-ribbon-focus-column-left" && spec.shortcut === "Meta+Alt+H"), true);
 assert.equal(developmentSpecs.some((spec) => spec.name === "kwin-ribbon-close-window" && spec.shortcut === "Meta+Q"), true);
 assert.equal(developmentSpecs.some((spec) => spec.shortcut.length > 0), true);
@@ -100,6 +107,36 @@ api.dispatchRibbonAction(edgeStackState, "kwin-ribbon-move-window-bottom", { out
 assert.deepEqual(plain(edgeStackColumn.windows), ["top", "bottom", "middle"]);
 api.dispatchRibbonAction(edgeStackState, "kwin-ribbon-move-window-top", { outputId: "screen-1", workspaceIndex: 0 });
 assert.deepEqual(plain(edgeStackColumn.windows), ["middle", "top", "bottom"]);
+
+const flowState = api.createState();
+const flowWorkspace = api.ensureWorkspace(flowState, "screen-1", 0);
+const flowLeft = api.createColumn(flowState, ["a", "b"]);
+const flowRight = api.createColumn(flowState, ["c", "d"]);
+flowWorkspace.columns.push(flowLeft, flowRight);
+flowState.windowIndex.a = api.createLocation("screen-1", 0, 0, 0);
+flowState.windowIndex.b = api.createLocation("screen-1", 0, 0, 1);
+flowState.windowIndex.c = api.createLocation("screen-1", 0, 1, 0);
+flowState.windowIndex.d = api.createLocation("screen-1", 0, 1, 1);
+assert.deepEqual(plain(api.dispatchRibbonAction(flowState, "kwin-ribbon-focus-window-or-column-down", { outputId: "screen-1", workspaceIndex: 0 })), {
+  outputId: "screen-1",
+  workspaceIndex: 0,
+  columnIndex: 0,
+  windowIndex: 1
+});
+assert.deepEqual(plain(api.dispatchRibbonAction(flowState, "kwin-ribbon-focus-window-or-column-down", { outputId: "screen-1", workspaceIndex: 0 })), {
+  outputId: "screen-1",
+  workspaceIndex: 0,
+  columnIndex: 1,
+  windowIndex: 0
+});
+assert.deepEqual(plain(api.dispatchRibbonAction(flowState, "kwin-ribbon-focus-window-or-column-up", { outputId: "screen-1", workspaceIndex: 0 })), {
+  outputId: "screen-1",
+  workspaceIndex: 0,
+  columnIndex: 0,
+  windowIndex: 1
+});
+assert.equal(api.dispatchRibbonAction(flowState, "kwin-ribbon-focus-workspace-up", { outputId: "screen-1", workspaceIndex: 0 }), true);
+assert.equal(api.dispatchRibbonAction(flowState, "kwin-ribbon-focus-workspace-down", { outputId: "screen-1", workspaceIndex: 0 }), true);
 
 const mutationScope = { outputId: "screen-1", workspaceIndex: 0 };
 const consumeOrExpelState = api.createState();

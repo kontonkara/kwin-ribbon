@@ -467,6 +467,35 @@
             return closed;
         }
 
+        function workspaceActionDirection(actionName) {
+            if (actionName === "kwin-ribbon-focus-workspace-up") {
+                return -1;
+            }
+            if (actionName === "kwin-ribbon-focus-workspace-down") {
+                return 1;
+            }
+            return 0;
+        }
+
+        function focusWorkspaceAction(actionName, activeInfo, targetScope, beforeSnapshot) {
+            var direction = workspaceActionDirection(actionName);
+            var changed = false;
+            if (direction !== 0 && typeof adapterEnv.focusWorkspace === "function") {
+                changed = adapterEnv.focusWorkspace(direction) === true;
+            }
+            if (changed) {
+                syncWindows();
+                arrange(targetScope, {
+                    actionId: actionName,
+                    activeKWinWindowId: activeInfo && activeInfo.windowId,
+                    activeKWinWindowReason: activeInfo && activeInfo.reason,
+                    activeKWinWindowKnown: !!(activeInfo && activeInfo.windowId && registry[activeInfo.windowId]),
+                    beforeSnapshot: beforeSnapshot
+                });
+            }
+            return changed;
+        }
+
         function dispatchAction(actionName, scope) {
             var active = adapterActiveWindow(adapterEnv);
             var activeInfo = active ? classify(active) : null;
@@ -479,6 +508,9 @@
             if (location !== null && location !== undefined) {
                 if (actionName === "kwin-ribbon-close-window") {
                     return closeActiveWindow(active, activeInfo, targetScope, beforeSnapshot);
+                }
+                if (workspaceActionDirection(actionName) !== 0) {
+                    return focusWorkspaceAction(actionName, activeInfo, targetScope, beforeSnapshot);
                 }
                 applyFullscreenAction(actionName, fullscreenTarget);
                 fullscreenEnabled = fullscreenTargetEnabled(fullscreenTarget);

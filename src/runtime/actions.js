@@ -57,6 +57,10 @@
         return true;
     }
 
+    function workspaceAction() {
+        return true;
+    }
+
     var RIBBON_ACTION_SPECS = [
         { name: "kwin-ribbon-focus-column-left", title: "KWin Ribbon: Focus Column Left", handler: scopedAction(focusColumnLeft) },
         { name: "kwin-ribbon-focus-column-right", title: "KWin Ribbon: Focus Column Right", handler: scopedAction(focusColumnRight) },
@@ -64,6 +68,8 @@
         { name: "kwin-ribbon-focus-column-last", title: "KWin Ribbon: Focus Last Column", handler: scopedAction(focusLastColumn) },
         { name: "kwin-ribbon-focus-window-up", title: "KWin Ribbon: Focus Window Up", handler: scopedAction(focusWindowUp) },
         { name: "kwin-ribbon-focus-window-down", title: "KWin Ribbon: Focus Window Down", handler: scopedAction(focusWindowDown) },
+        { name: "kwin-ribbon-focus-window-or-column-up", title: "KWin Ribbon: Focus Window or Column Up", handler: scopedAction(focusWindowOrColumnUp) },
+        { name: "kwin-ribbon-focus-window-or-column-down", title: "KWin Ribbon: Focus Window or Column Down", handler: scopedAction(focusWindowOrColumnDown) },
         { name: "kwin-ribbon-focus-window-top", title: "KWin Ribbon: Focus Top Window", handler: scopedAction(focusTopWindow) },
         { name: "kwin-ribbon-focus-window-bottom", title: "KWin Ribbon: Focus Bottom Window", handler: scopedAction(focusBottomWindow) },
         { name: "kwin-ribbon-move-column-left", title: "KWin Ribbon: Move Column Left", handler: scopedAction(moveColumnLeft) },
@@ -92,6 +98,8 @@
         { name: "kwin-ribbon-fullscreen-window", title: "KWin Ribbon: Fullscreen Window", handler: fullscreenWindowAction },
         { name: "kwin-ribbon-toggle-floating", title: "KWin Ribbon: Toggle Floating", handler: floatingWindowAction },
         { name: "kwin-ribbon-close-window", title: "KWin Ribbon: Close Window", handler: closeWindowAction },
+        { name: "kwin-ribbon-focus-workspace-up", title: "KWin Ribbon: Focus Workspace Up", handler: workspaceAction },
+        { name: "kwin-ribbon-focus-workspace-down", title: "KWin Ribbon: Focus Workspace Down", handler: workspaceAction },
         { name: "kwin-ribbon-center-column", title: "KWin Ribbon: Center Column", handler: centerColumnAction }
     ];
 
