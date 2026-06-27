@@ -58,16 +58,67 @@
             };
         }
 
+        function fallbackContextForWindow(id, info) {
+            var active = adapterActiveWindow(adapterEnv);
+            var activeId = windowIdFromWindow(active);
+            var location = state.windowIndex[id];
+            var parked = state.parked[id];
+            var outputId = (location && location.outputId) || (parked && parked.outputId) || (info && info.outputId) || "default";
+            var workspaceIndex = location ? location.workspaceIndex : (parked ? parked.workspaceIndex : ((info && info.workspaceIndex !== undefined) ? info.workspaceIndex : 0));
+            var workspace = getWorkspace(state, outputId, workspaceIndex);
+            var wasFocusedTiled = location && focusedWindowId(workspace) === id;
+            return {
+                outputId: outputId,
+                workspaceIndex: workspaceIndex,
+                needed: activeId === id || (!activeId && (wasFocusedTiled || state.lastFloatingWindowId === id))
+            };
+        }
+
+        function activateFocusedFallback(context) {
+            var workspace;
+            var id;
+            var entry;
+            if (!context || context.needed !== true || typeof adapterEnv.activateWindow !== "function") {
+                return null;
+            }
+            workspace = getWorkspace(state, context.outputId, context.workspaceIndex);
+            id = focusedWindowId(workspace);
+            entry = id ? registry[id] || null : null;
+            if (entry && entry.windowRef) {
+                adapterEnv.activateWindow(entry.windowRef);
+                return state.windowIndex[id] || null;
+            }
+            return null;
+        }
+
+        function connectWorkspaceSignals(names, handler) {
+            var connected = false;
+            var seen = [];
+            var i;
+            var signal;
+            for (i = 0; i < names.length; i += 1) {
+                signal = adapterEnv.workspace && adapterEnv.workspace[names[i]];
+                if (signal && seen.indexOf(signal) < 0) {
+                    seen.push(signal);
+                    connected = signalConnect(signal, handler) || connected;
+                }
+            }
+            return connected;
+        }
+
         function handleWindowAdded(windowRef) {
             var info = classify(windowRef);
+            var fallback;
             if (!info.windowId) {
                 return info;
             }
+            fallback = fallbackContextForWindow(info.windowId, info);
             if (!info.manageable) {
                 skippedRegistry[info.windowId] = info;
                 if (registry[info.windowId] || state.windowIndex[info.windowId] || state.parked[info.windowId]) {
                     delete registry[info.windowId];
                     removeWindow(state, info.windowId);
+                    activateFocusedFallback(fallback);
                 }
                 return info;
             }
@@ -85,30 +136,41 @@
                 setWindowFullscreen(state, info.windowId, true);
             } else if (info.action === "park" && state.windowIndex[info.windowId]) {
                 parkWindow(state, info.windowId, info.reason);
+                activateFocusedFallback(fallback);
             }
             return info;
         }
 
         function handleWindowRemoved(windowRefOrId) {
             var id = typeof windowRefOrId === "string" ? windowRefOrId : windowIdFromWindow(windowRefOrId);
+            var info;
+            var fallback;
             if (!id) {
                 return null;
             }
+            info = (registry[id] && registry[id].classification) || skippedRegistry[id] || (typeof windowRefOrId === "string" ? null : classify(windowRefOrId, id));
+            fallback = fallbackContextForWindow(id, info);
             delete registry[id];
+            delete skippedRegistry[id];
             removeWindow(state, id);
+            activateFocusedFallback(fallback);
             return id;
         }
 
         function handleActiveWindowChanged(windowRef) {
-            var id = windowIdFromWindow(windowRef);
-            if (!id) {
+            var info = classify(windowRef);
+            if (!info.windowId) {
                 return null;
             }
-            if (state.windowIndex[id]) {
-                return focusWindowById(state, id);
+            if ((registry[info.windowId] || skippedRegistry[info.windowId] || state.windowIndex[info.windowId] || state.parked[info.windowId]) && info.action !== "tile") {
+                handleWindowAdded(windowRef);
+                return null;
             }
-            if (state.floating[id]) {
-                state.lastFloatingWindowId = id;
+            if (state.windowIndex[info.windowId]) {
+                return focusWindowById(state, info.windowId);
+            }
+            if (state.floating[info.windowId]) {
+                state.lastFloatingWindowId = info.windowId;
             }
             return null;
         }
@@ -144,32 +206,20 @@
             }
             started = true;
             if (adapterEnv.workspace) {
-                signalConnect(adapterEnv.workspace.windowAdded, function (windowRef) {
+                connectWorkspaceSignals(["windowAdded", "clientAdded"], function (windowRef) {
                     handleWindowAdded(windowRef);
                     syncActiveWindow();
                     arrange();
                 });
-                signalConnect(adapterEnv.workspace.windowRemoved, function (windowRef) {
+                connectWorkspaceSignals(["windowRemoved", "windowDeleted", "windowClosed", "clientRemoved", "clientDeleted", "clientClosed"], function (windowRef) {
                     handleWindowRemoved(windowRef);
                     arrange();
                 });
-                signalConnect(adapterEnv.workspace.windowDeleted, function (windowRef) {
-                    handleWindowRemoved(windowRef);
-                    arrange();
-                });
-                signalConnect(adapterEnv.workspace.activeWindowChanged, function (windowRef) {
+                connectWorkspaceSignals(["activeWindowChanged", "clientActivated"], function (windowRef) {
                     handleActiveWindowChanged(windowRef || adapterActiveWindow(adapterEnv));
                     arrange();
                 });
-                signalConnect(adapterEnv.workspace.clientActivated, function (windowRef) {
-                    handleActiveWindowChanged(windowRef || adapterActiveWindow(adapterEnv));
-                    arrange();
-                });
-                signalConnect(adapterEnv.workspace.currentDesktopChanged, function () {
-                    syncWindows();
-                    arrange();
-                });
-                signalConnect(adapterEnv.workspace.currentVirtualDesktopChanged, function () {
+                connectWorkspaceSignals(["currentDesktopChanged", "currentVirtualDesktopChanged"], function () {
                     syncWindows();
                     arrange();
                 });

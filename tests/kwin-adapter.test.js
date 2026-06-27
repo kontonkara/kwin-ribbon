@@ -131,15 +131,20 @@ assert.deepEqual(plain(temporaryWorkspace.columns.map((column) => column.windows
 ]);
 
 const windowAdded = signal();
+const clientAdded = signal();
 const windowRemoved = signal();
+const windowDeleted = signal();
+const windowClosed = signal();
+const clientRemoved = signal();
 const activeWindowChanged = signal();
+const clientActivated = signal();
 let windows = [
   { internalId: "a", output: "screen-1" },
   { internalId: "b", output: "screen-1" }
 ];
 let activeWindow = windows[1];
 const env = {
-  workspace: { windowAdded, windowRemoved, activeWindowChanged },
+  workspace: { windowAdded, clientAdded, windowRemoved, windowDeleted, windowClosed, clientRemoved, activeWindowChanged, clientActivated },
   getWindows: () => windows,
   getActiveWindow: () => activeWindow
 };
@@ -147,8 +152,13 @@ const syncAdapter = api.createKWinAdapter(env, { tileNewWindows: true });
 
 syncAdapter.start();
 assert.equal(windowAdded.handlers.length, 1);
+assert.equal(clientAdded.handlers.length, 1);
 assert.equal(windowRemoved.handlers.length, 1);
+assert.equal(windowDeleted.handlers.length, 1);
+assert.equal(windowClosed.handlers.length, 1);
+assert.equal(clientRemoved.handlers.length, 1);
 assert.equal(activeWindowChanged.handlers.length, 1);
+assert.equal(clientActivated.handlers.length, 1);
 assert.deepEqual(plain(api.getWorkspace(syncAdapter.state, "screen-1", 0).columns.map((column) => column.windows)), [
   ["a"],
   ["b"]
@@ -165,6 +175,52 @@ assert.equal(syncAdapter.state.windowIndex.c.columnIndex, 1);
 
 windowRemoved.emit({ internalId: "c" });
 assert.equal(syncAdapter.state.windowIndex.c, undefined);
+
+clientAdded.emit({ internalId: "d", output: "screen-1" });
+assert.equal(syncAdapter.state.windowIndex.d.columnIndex, 1);
+windowClosed.emit({ internalId: "d" });
+assert.equal(syncAdapter.state.windowIndex.d, undefined);
+
+const fallbackFirst = { internalId: "fallback-1", output: "screen-1" };
+const fallbackSecond = { internalId: "fallback-2", output: "screen-1" };
+const fallbackThird = { internalId: "fallback-3", output: "screen-1" };
+let fallbackActive = fallbackSecond;
+const fallbackActivated = [];
+const fallbackAdapter = api.createKWinAdapter({
+  getWindows: () => [fallbackFirst, fallbackSecond, fallbackThird],
+  getActiveWindow: () => fallbackActive,
+  activateWindow: (windowRef) => {
+    fallbackActive = windowRef;
+    fallbackActivated.push(windowRef.internalId);
+  }
+}, { tileNewWindows: true });
+fallbackAdapter.syncWindows();
+fallbackSecond.minimized = true;
+fallbackAdapter.syncWindows();
+assert.equal(fallbackAdapter.state.windowIndex["fallback-2"], undefined);
+assert.equal(fallbackAdapter.state.parked["fallback-2"].reason, "temporarily-unavailable");
+assert.deepEqual(fallbackActivated, ["fallback-3"]);
+
+const removalFirst = { internalId: "removal-1", output: "screen-1" };
+const removalSecond = { internalId: "removal-2", output: "screen-1" };
+const removalThird = { internalId: "removal-3", output: "screen-1" };
+let removalWindows = [removalFirst, removalSecond, removalThird];
+let removalActive = removalSecond;
+const removalActivated = [];
+const removalAdapter = api.createKWinAdapter({
+  getWindows: () => removalWindows,
+  getActiveWindow: () => removalActive,
+  activateWindow: (windowRef) => {
+    removalActive = windowRef;
+    removalActivated.push(windowRef.internalId);
+  }
+}, { tileNewWindows: true });
+removalAdapter.syncWindows();
+removalWindows = [removalFirst, removalThird];
+removalAdapter.syncWindows();
+assert.equal(removalAdapter.registry["removal-2"], undefined);
+assert.equal(removalAdapter.state.windowIndex["removal-2"], undefined);
+assert.deepEqual(removalActivated, ["removal-3"]);
 
 const firstWindow = { internalId: "p1", output: "screen-1" };
 const secondWindow = { internalId: "p2", output: "screen-1" };
