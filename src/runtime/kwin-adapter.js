@@ -196,6 +196,11 @@
                     handleWindowRemoved(id);
                 }
             }
+            for (id in skippedRegistry) {
+                if (hasOwn(skippedRegistry, id) && !seen[id]) {
+                    delete skippedRegistry[id];
+                }
+            }
             syncActiveWindow();
             return state;
         }

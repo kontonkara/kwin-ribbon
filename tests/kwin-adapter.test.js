@@ -222,6 +222,57 @@ assert.equal(removalAdapter.registry["removal-2"], undefined);
 assert.equal(removalAdapter.state.windowIndex["removal-2"], undefined);
 assert.deepEqual(removalActivated, ["removal-3"]);
 
+const skippedWindow = { internalId: "skipped-stale", output: "screen-1", dock: true };
+let skippedWindows = [skippedWindow];
+const skippedAdapter = api.createKWinAdapter({
+  getWindows: () => skippedWindows
+}, { tileNewWindows: true });
+skippedAdapter.syncWindows();
+assert.equal(skippedAdapter.skippedRegistry["skipped-stale"].reason, "special-window");
+skippedWindows = [];
+skippedAdapter.syncWindows();
+assert.equal(skippedAdapter.skippedRegistry["skipped-stale"], undefined);
+
+const boundaryFirst = { internalId: "boundary-1", output: "screen-1" };
+const boundarySecond = { internalId: "boundary-2", output: "screen-1" };
+let boundaryWindows = [boundaryFirst, boundarySecond];
+const boundaryAdapter = api.createKWinAdapter({
+  getWindows: () => boundaryWindows
+}, { tileNewWindows: true });
+boundaryAdapter.syncWindows();
+boundarySecond.dock = true;
+boundaryAdapter.syncWindows();
+assert.equal(boundaryAdapter.registry["boundary-2"], undefined);
+assert.equal(boundaryAdapter.state.windowIndex["boundary-2"], undefined);
+assert.equal(boundaryAdapter.skippedRegistry["boundary-2"].reason, "special-window");
+boundarySecond.dock = false;
+boundaryAdapter.syncWindows();
+boundaryAdapter.syncWindows();
+assert.equal(boundaryAdapter.skippedRegistry["boundary-2"], undefined);
+assert.deepEqual(plain(api.getWorkspace(boundaryAdapter.state, "screen-1", 0).columns.map((column) => column.windows)), [
+  ["boundary-1"],
+  ["boundary-2"]
+]);
+
+const closeFirst = { internalId: "close-1", output: "screen-1" };
+const closeSecond = { internalId: "close-2", output: "screen-1" };
+let closeWindows = [closeFirst, closeSecond];
+const closeAdapter = api.createKWinAdapter({
+  getWindows: () => closeWindows
+}, { tileNewWindows: true });
+closeAdapter.syncWindows();
+closeWindows = [closeFirst];
+closeAdapter.syncWindows();
+assert.equal(closeAdapter.registry["close-2"], undefined);
+assert.equal(closeAdapter.state.windowIndex["close-2"], undefined);
+closeWindows = [closeFirst, closeSecond];
+closeAdapter.syncWindows();
+closeAdapter.syncWindows();
+assert.deepEqual(plain(api.getWorkspace(closeAdapter.state, "screen-1", 0).columns.map((column) => column.windows)), [
+  ["close-1"],
+  ["close-2"]
+]);
+
 const firstWindow = { internalId: "p1", output: "screen-1" };
 const secondWindow = { internalId: "p2", output: "screen-1" };
 const projectionAdapter = api.createKWinAdapter({
