@@ -39,6 +39,12 @@ const mutationActionNames = [
   "kwin-ribbon-swap-window-left",
   "kwin-ribbon-swap-window-right"
 ];
+const heightActionNames = [
+  "kwin-ribbon-next-window-height",
+  "kwin-ribbon-previous-window-height",
+  "kwin-ribbon-reset-window-height",
+  "kwin-ribbon-reset-column-heights"
+];
 
 assert.equal(specs.length > 0, true);
 assert.equal(specs.every((spec) => spec.shortcut === ""), true);
@@ -52,6 +58,7 @@ assert.equal(specs.some((spec) => spec.name === "kwin-ribbon-toggle-floating"), 
 assert.equal(specs.some((spec) => spec.name === "kwin-ribbon-center-column"), true);
 assert.equal(edgeActionNames.every((name) => specs.some((spec) => spec.name === name)), true);
 assert.equal(mutationActionNames.every((name) => specs.some((spec) => spec.name === name)), true);
+assert.equal(heightActionNames.every((name) => specs.some((spec) => spec.name === name)), true);
 assert.equal(developmentSpecs.some((spec) => spec.name === "kwin-ribbon-focus-column-left" && spec.shortcut === "Meta+Alt+H"), true);
 assert.equal(developmentSpecs.some((spec) => spec.shortcut.length > 0), true);
 
@@ -178,6 +185,27 @@ assert.deepEqual(plain(api.getWorkspace(swapState, "screen-1", 0).columns.map((c
   ["two"],
   ["three"]
 ]);
+
+const heightActionState = api.createState({ presetWindowHeights: [0.25, 0.5, 0.75] });
+const heightActionWorkspace = api.ensureWorkspace(heightActionState, "screen-1", 0);
+const heightActionColumn = api.createColumn(heightActionState, ["top", "middle", "bottom"]);
+heightActionWorkspace.columns.push(heightActionColumn);
+heightActionState.windowIndex.top = api.createLocation("screen-1", 0, 0, 0);
+heightActionState.windowIndex.middle = api.createLocation("screen-1", 0, 0, 1);
+heightActionState.windowIndex.bottom = api.createLocation("screen-1", 0, 0, 2);
+api.focusWindowByIndex(heightActionState, "screen-1", 0, 2);
+api.setWindowHeight(heightActionState, "screen-1", 0, 0.5);
+api.dispatchRibbonAction(heightActionState, "kwin-ribbon-next-window-height", mutationScope);
+assert.deepEqual(plain(heightActionColumn.heightWeights), { middle: 0.75 });
+api.dispatchRibbonAction(heightActionState, "kwin-ribbon-previous-window-height", mutationScope);
+assert.deepEqual(plain(heightActionColumn.heightWeights), { middle: 0.5 });
+api.dispatchRibbonAction(heightActionState, "kwin-ribbon-reset-window-height", mutationScope);
+assert.deepEqual(plain(heightActionColumn.heightWeights), {});
+api.setWindowHeight(heightActionState, "screen-1", 0, 0.25);
+api.focusWindowByIndex(heightActionState, "screen-1", 0, 3);
+api.setWindowHeight(heightActionState, "screen-1", 0, 0.75);
+api.dispatchRibbonAction(heightActionState, "kwin-ribbon-reset-column-heights", mutationScope);
+assert.deepEqual(plain(heightActionColumn.heightWeights), {});
 
 const state = api.createState();
 api.addWindow(state, "screen-1", 0, "one");

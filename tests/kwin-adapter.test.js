@@ -30,6 +30,29 @@ function signal() {
   };
 }
 
+const newlyWiredActionNames = [
+  "kwin-ribbon-focus-column-first",
+  "kwin-ribbon-focus-column-last",
+  "kwin-ribbon-move-column-first",
+  "kwin-ribbon-move-column-last",
+  "kwin-ribbon-focus-window-top",
+  "kwin-ribbon-focus-window-bottom",
+  "kwin-ribbon-move-window-top",
+  "kwin-ribbon-move-window-bottom",
+  "kwin-ribbon-consume-or-expel-left",
+  "kwin-ribbon-consume-or-expel-right",
+  "kwin-ribbon-consume-into-column-left",
+  "kwin-ribbon-consume-into-column-right",
+  "kwin-ribbon-expel-from-column-left",
+  "kwin-ribbon-expel-from-column-right",
+  "kwin-ribbon-swap-window-left",
+  "kwin-ribbon-swap-window-right",
+  "kwin-ribbon-next-window-height",
+  "kwin-ribbon-previous-window-height",
+  "kwin-ribbon-reset-window-height",
+  "kwin-ribbon-reset-column-heights"
+];
+
 const adapter = api.createKWinAdapter({}, { tileNewWindows: true });
 
 assert.equal(adapter.handleWindowAdded({ internalId: "skip", skipTaskbar: true }).action, "ignore");
@@ -178,10 +201,13 @@ actionAdapter.handleWindowAdded(actionSecond);
 assert.equal(actionAdapter.registerShortcuts(), true);
 assert.equal(registered.every((entry) => entry.shortcut === ""), true);
 assert.equal(registered.every((entry) => entry.name.indexOf("interactive") < 0), true);
+assert.equal(newlyWiredActionNames.every((name) => registered.some((entry) => entry.name === name)), true);
 assert.equal(registered.some((entry) => entry.name === "kwin-ribbon-focus-column-first" && entry.title === "KWin Ribbon: Focus First Column"), true);
 assert.equal(registered.some((entry) => entry.name === "kwin-ribbon-move-window-bottom" && entry.title === "KWin Ribbon: Move Window Bottom"), true);
 assert.equal(registered.some((entry) => entry.name === "kwin-ribbon-consume-or-expel-left" && entry.title === "KWin Ribbon: Consume or Expel Left"), true);
 assert.equal(registered.some((entry) => entry.name === "kwin-ribbon-swap-window-right" && entry.title === "KWin Ribbon: Swap Window Right"), true);
+assert.equal(registered.some((entry) => entry.name === "kwin-ribbon-next-window-height" && entry.title === "KWin Ribbon: Next Window Height"), true);
+assert.equal(registered.some((entry) => entry.name === "kwin-ribbon-reset-column-heights" && entry.title === "KWin Ribbon: Reset Column Heights"), true);
 registered.find((entry) => entry.name === "kwin-ribbon-focus-column-left").callback();
 assert.equal(actionAdapter.state.lastTiledWindowId, "action-1");
 assert.deepEqual(activated, ["action-1"]);
@@ -299,6 +325,7 @@ assert.equal(snapshot.actions.some((entry) => entry.name === "kwin-ribbon-focus-
 assert.equal(snapshot.actions.some((entry) => entry.name === "kwin-ribbon-move-window-bottom"), true);
 assert.equal(snapshot.actions.some((entry) => entry.name === "kwin-ribbon-consume-or-expel-left"), true);
 assert.equal(snapshot.actions.some((entry) => entry.name === "kwin-ribbon-swap-window-right"), true);
+assert.equal(newlyWiredActionNames.every((name) => snapshot.actions.some((entry) => entry.name === name)), true);
 assert.equal(snapshot.runtime.activeKWinWindowId, "snap");
 assert.equal(snapshot.runtime.activeKWinWindowKnown, true);
 assert.equal(snapshot.runtime.focusedModelWindowId, "snap");

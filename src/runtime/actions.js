@@ -45,6 +45,14 @@
         return switchPresetColumnWidthBack(state, actionOutputId(scope), actionWorkspaceIndex(scope));
     }
 
+    function switchWindowHeightAction(state, scope) {
+        return switchPresetWindowHeight(state, actionOutputId(scope), actionWorkspaceIndex(scope), 1);
+    }
+
+    function switchWindowHeightBackAction(state, scope) {
+        return switchPresetWindowHeightBack(state, actionOutputId(scope), actionWorkspaceIndex(scope));
+    }
+
     var RIBBON_ACTION_SPECS = [
         { name: "kwin-ribbon-focus-column-left", title: "KWin Ribbon: Focus Column Left", handler: scopedAction(focusColumnLeft) },
         { name: "kwin-ribbon-focus-column-right", title: "KWin Ribbon: Focus Column Right", handler: scopedAction(focusColumnRight) },
@@ -72,6 +80,10 @@
         { name: "kwin-ribbon-swap-window-right", title: "KWin Ribbon: Swap Window Right", handler: scopedAction(swapWindowRight) },
         { name: "kwin-ribbon-next-column-width", title: "KWin Ribbon: Next Column Width", handler: switchColumnWidthAction },
         { name: "kwin-ribbon-previous-column-width", title: "KWin Ribbon: Previous Column Width", handler: switchColumnWidthBackAction },
+        { name: "kwin-ribbon-next-window-height", title: "KWin Ribbon: Next Window Height", handler: switchWindowHeightAction },
+        { name: "kwin-ribbon-previous-window-height", title: "KWin Ribbon: Previous Window Height", handler: switchWindowHeightBackAction },
+        { name: "kwin-ribbon-reset-window-height", title: "KWin Ribbon: Reset Window Height", handler: scopedAction(resetWindowHeight) },
+        { name: "kwin-ribbon-reset-column-heights", title: "KWin Ribbon: Reset Column Heights", handler: scopedAction(resetColumnHeights) },
         { name: "kwin-ribbon-maximize-column", title: "KWin Ribbon: Maximize Column", handler: scopedAction(toggleColumnFullWidth) },
         { name: "kwin-ribbon-fullscreen-window", title: "KWin Ribbon: Fullscreen Window", handler: fullscreenWindowAction },
         { name: "kwin-ribbon-toggle-floating", title: "KWin Ribbon: Toggle Floating", handler: floatingWindowAction },
