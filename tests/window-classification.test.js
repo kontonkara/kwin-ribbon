@@ -44,6 +44,9 @@ assert.equal(api.classifyWindow({ internalId: "dock", dock: true }).reason, "spe
 assert.equal(api.classifyWindow({ internalId: "skip", skipTaskbar: true }).reason, "skipped-window");
 assert.equal(api.classifyWindow({ internalId: "fixed", resizable: false }).reason, "fixed-window");
 assert.equal(api.classifyWindow({ internalId: "gone", deleted: true }).reason, "unmanaged");
+assert.equal(api.classifyWindow({ internalId: "ready", readyForPainting: false }).action, "park");
+assert.equal(api.classifyWindow({ internalId: "hidden", isHidden: true }).action, "park");
+assert.equal(api.classifyWindow({ internalId: "shaded", shade: true }).action, "park");
 
 assert.deepEqual(plain(api.classifyWindow({ internalId: "min", minimized: true })), {
   windowId: "min",

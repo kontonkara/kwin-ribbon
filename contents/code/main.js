@@ -1854,8 +1854,8 @@
         if (readWindowValue(windowRef, ["resizable", "resizeable"]) === false || readWindowValue(windowRef, ["movable", "moveable"]) === false) {
             return classification(windowRef, options, "ignore", "fixed-window", false);
         }
-        ready = readWindowValue(windowRef, ["ready"]);
-        if (boolValue(readWindowValue(windowRef, ["minimized", "hidden", "shaded"])) || ready === false) {
+        ready = readWindowValue(windowRef, ["ready", "readyForPainting", "readyForPaint"]);
+        if (boolValue(readWindowValue(windowRef, ["minimized", "isMinimized", "hidden", "isHidden", "shaded", "shade", "isShade"])) || ready === false) {
             return classification(windowRef, options, "park", "temporarily-unavailable", true);
         }
         if (windowFullscreenValue(windowRef)) {

@@ -89,6 +89,47 @@ parkedAdapter.handleWindowAdded(parkedWindow);
 assert.equal(parkedAdapter.state.windowIndex.parked.columnIndex, 0);
 assert.deepEqual(plain(api.getWorkspace(parkedAdapter.state, "screen-1", 0).columns.map((column) => column.windows)), [["parked"]]);
 
+const temporaryFirst = { internalId: "temporary-1", output: "screen-1" };
+const temporarySecond = { internalId: "temporary-2", output: "screen-1" };
+const temporaryThird = { internalId: "temporary-3", output: "screen-1" };
+const temporaryAdapter = api.createKWinAdapter({
+  getWindows: () => [temporaryFirst, temporarySecond, temporaryThird]
+}, { tileNewWindows: true });
+temporaryAdapter.syncWindows();
+const temporaryWorkspace = api.getWorkspace(temporaryAdapter.state, "screen-1", 0);
+assert.deepEqual(plain(temporaryWorkspace.columns.map((column) => column.windows)), [
+  ["temporary-1"],
+  ["temporary-2"],
+  ["temporary-3"]
+]);
+temporarySecond.readyForPainting = false;
+temporaryAdapter.syncWindows();
+assert.equal(temporaryAdapter.state.windowIndex["temporary-2"], undefined);
+assert.equal(temporaryAdapter.state.parked["temporary-2"].reason, "temporarily-unavailable");
+assert.deepEqual(plain(temporaryWorkspace.columns.map((column) => column.windows)), [
+  ["temporary-1"],
+  ["temporary-3"]
+]);
+temporaryAdapter.syncWindows();
+assert.deepEqual(plain(temporaryWorkspace.columns.map((column) => column.windows)), [
+  ["temporary-1"],
+  ["temporary-3"]
+]);
+temporarySecond.readyForPainting = true;
+temporaryAdapter.syncWindows();
+assert.equal(temporaryAdapter.state.parked["temporary-2"], undefined);
+assert.deepEqual(plain(temporaryWorkspace.columns.map((column) => column.windows)), [
+  ["temporary-1"],
+  ["temporary-2"],
+  ["temporary-3"]
+]);
+temporaryAdapter.syncWindows();
+assert.deepEqual(plain(temporaryWorkspace.columns.map((column) => column.windows)), [
+  ["temporary-1"],
+  ["temporary-2"],
+  ["temporary-3"]
+]);
+
 const windowAdded = signal();
 const windowRemoved = signal();
 const activeWindowChanged = signal();
