@@ -29,6 +29,16 @@ const edgeActionNames = [
   "kwin-ribbon-move-window-top",
   "kwin-ribbon-move-window-bottom"
 ];
+const mutationActionNames = [
+  "kwin-ribbon-consume-or-expel-left",
+  "kwin-ribbon-consume-or-expel-right",
+  "kwin-ribbon-consume-into-column-left",
+  "kwin-ribbon-consume-into-column-right",
+  "kwin-ribbon-expel-from-column-left",
+  "kwin-ribbon-expel-from-column-right",
+  "kwin-ribbon-swap-window-left",
+  "kwin-ribbon-swap-window-right"
+];
 
 assert.equal(specs.length > 0, true);
 assert.equal(specs.every((spec) => spec.shortcut === ""), true);
@@ -41,6 +51,7 @@ assert.equal(specs.some((spec) => spec.name === "kwin-ribbon-fullscreen-window")
 assert.equal(specs.some((spec) => spec.name === "kwin-ribbon-toggle-floating"), true);
 assert.equal(specs.some((spec) => spec.name === "kwin-ribbon-center-column"), true);
 assert.equal(edgeActionNames.every((name) => specs.some((spec) => spec.name === name)), true);
+assert.equal(mutationActionNames.every((name) => specs.some((spec) => spec.name === name)), true);
 assert.equal(developmentSpecs.some((spec) => spec.name === "kwin-ribbon-focus-column-left" && spec.shortcut === "Meta+Alt+H"), true);
 assert.equal(developmentSpecs.some((spec) => spec.shortcut.length > 0), true);
 
@@ -80,6 +91,93 @@ api.dispatchRibbonAction(edgeStackState, "kwin-ribbon-move-window-bottom", { out
 assert.deepEqual(plain(edgeStackColumn.windows), ["top", "bottom", "middle"]);
 api.dispatchRibbonAction(edgeStackState, "kwin-ribbon-move-window-top", { outputId: "screen-1", workspaceIndex: 0 });
 assert.deepEqual(plain(edgeStackColumn.windows), ["middle", "top", "bottom"]);
+
+const mutationScope = { outputId: "screen-1", workspaceIndex: 0 };
+const consumeOrExpelState = api.createState();
+api.addWindow(consumeOrExpelState, "screen-1", 0, "one");
+api.addWindow(consumeOrExpelState, "screen-1", 0, "two");
+api.addWindow(consumeOrExpelState, "screen-1", 0, "three");
+api.dispatchRibbonAction(consumeOrExpelState, "kwin-ribbon-consume-or-expel-left", mutationScope);
+assert.deepEqual(plain(api.getWorkspace(consumeOrExpelState, "screen-1", 0).columns.map((column) => column.windows)), [
+  ["one"],
+  ["two", "three"]
+]);
+api.dispatchRibbonAction(consumeOrExpelState, "kwin-ribbon-consume-or-expel-left", mutationScope);
+assert.deepEqual(plain(api.getWorkspace(consumeOrExpelState, "screen-1", 0).columns.map((column) => column.windows)), [
+  ["one"],
+  ["three"],
+  ["two"]
+]);
+
+const consumeOrExpelRightState = api.createState();
+api.addWindow(consumeOrExpelRightState, "screen-1", 0, "one");
+api.addWindow(consumeOrExpelRightState, "screen-1", 0, "two");
+api.addWindow(consumeOrExpelRightState, "screen-1", 0, "three");
+api.focusColumnByIndex(consumeOrExpelRightState, "screen-1", 0, 1);
+api.dispatchRibbonAction(consumeOrExpelRightState, "kwin-ribbon-consume-or-expel-right", mutationScope);
+assert.deepEqual(plain(api.getWorkspace(consumeOrExpelRightState, "screen-1", 0).columns.map((column) => column.windows)), [
+  ["one", "two"],
+  ["three"]
+]);
+
+const consumeIntoState = api.createState();
+api.addWindow(consumeIntoState, "screen-1", 0, "a");
+api.addWindow(consumeIntoState, "screen-1", 0, "b");
+api.addWindow(consumeIntoState, "screen-1", 0, "c");
+api.focusColumnByIndex(consumeIntoState, "screen-1", 0, 2);
+api.dispatchRibbonAction(consumeIntoState, "kwin-ribbon-consume-into-column-right", mutationScope);
+assert.deepEqual(plain(api.getWorkspace(consumeIntoState, "screen-1", 0).columns.map((column) => column.windows)), [
+  ["a"],
+  ["b", "c"]
+]);
+api.dispatchRibbonAction(consumeIntoState, "kwin-ribbon-consume-into-column-left", mutationScope);
+assert.deepEqual(plain(api.getWorkspace(consumeIntoState, "screen-1", 0).columns.map((column) => column.windows)), [["b", "c", "a"]]);
+
+const expelLeftState = api.createState();
+const expelLeftWorkspace = api.ensureWorkspace(expelLeftState, "screen-1", 0);
+const expelLeftColumn = api.createColumn(expelLeftState, ["a", "b", "c"]);
+expelLeftWorkspace.columns.push(expelLeftColumn);
+expelLeftState.windowIndex.a = api.createLocation("screen-1", 0, 0, 0);
+expelLeftState.windowIndex.b = api.createLocation("screen-1", 0, 0, 1);
+expelLeftState.windowIndex.c = api.createLocation("screen-1", 0, 0, 2);
+api.focusWindowByIndex(expelLeftState, "screen-1", 0, 2);
+api.dispatchRibbonAction(expelLeftState, "kwin-ribbon-expel-from-column-left", mutationScope);
+assert.deepEqual(plain(expelLeftWorkspace.columns.map((column) => column.windows)), [
+  ["b"],
+  ["a", "c"]
+]);
+
+const expelRightState = api.createState();
+const expelRightWorkspace = api.ensureWorkspace(expelRightState, "screen-1", 0);
+const expelRightColumn = api.createColumn(expelRightState, ["a", "b", "c"]);
+expelRightWorkspace.columns.push(expelRightColumn);
+expelRightState.windowIndex.a = api.createLocation("screen-1", 0, 0, 0);
+expelRightState.windowIndex.b = api.createLocation("screen-1", 0, 0, 1);
+expelRightState.windowIndex.c = api.createLocation("screen-1", 0, 0, 2);
+api.focusWindowByIndex(expelRightState, "screen-1", 0, 2);
+api.dispatchRibbonAction(expelRightState, "kwin-ribbon-expel-from-column-right", mutationScope);
+assert.deepEqual(plain(expelRightWorkspace.columns.map((column) => column.windows)), [
+  ["a", "c"],
+  ["b"]
+]);
+
+const swapState = api.createState();
+api.addWindow(swapState, "screen-1", 0, "one");
+api.addWindow(swapState, "screen-1", 0, "two");
+api.addWindow(swapState, "screen-1", 0, "three");
+api.focusColumnByIndex(swapState, "screen-1", 0, 2);
+api.dispatchRibbonAction(swapState, "kwin-ribbon-swap-window-left", mutationScope);
+assert.deepEqual(plain(api.getWorkspace(swapState, "screen-1", 0).columns.map((column) => column.windows)), [
+  ["two"],
+  ["one"],
+  ["three"]
+]);
+api.dispatchRibbonAction(swapState, "kwin-ribbon-swap-window-right", mutationScope);
+assert.deepEqual(plain(api.getWorkspace(swapState, "screen-1", 0).columns.map((column) => column.windows)), [
+  ["one"],
+  ["two"],
+  ["three"]
+]);
 
 const state = api.createState();
 api.addWindow(state, "screen-1", 0, "one");
