@@ -400,6 +400,30 @@ assert.equal(closeActionAdapter.registry["close-action-2"], undefined);
 assert.equal(closeActionAdapter.state.windowIndex["close-action-2"], undefined);
 assert.deepEqual(plain(api.getWorkspace(closeActionAdapter.state, "screen-1", 0).columns.map((column) => column.windows)), [["close-action-1"]]);
 
+const closePendingFirst = { internalId: "close-pending-1", output: "screen-1" };
+const closePendingSecond = { internalId: "close-pending-2", output: "screen-1" };
+const closePendingWindows = [closePendingFirst, closePendingSecond];
+const closePendingClosed = [];
+const closePendingAdapter = api.createKWinAdapter({
+  getWindows: () => closePendingWindows,
+  getActiveWindow: () => closePendingSecond,
+  closeWindow: (windowRef) => {
+    closePendingClosed.push(windowRef.internalId);
+    return true;
+  },
+  getArrangeArea: () => ({ x: 0, y: 0, width: 100, height: 100 })
+});
+closePendingAdapter.syncWindows();
+api.focusWindowById(closePendingAdapter.state, "close-pending-1");
+assert.equal(closePendingAdapter.dispatchAction("kwin-ribbon-close-window", { outputId: "screen-1", workspaceIndex: 0 }), true);
+assert.deepEqual(closePendingClosed, ["close-pending-2"]);
+assert.equal(closePendingAdapter.registry["close-pending-2"].classification.windowId, "close-pending-2");
+assert.equal(closePendingAdapter.state.windowIndex["close-pending-2"].columnIndex, 1);
+assert.deepEqual(plain(api.getWorkspace(closePendingAdapter.state, "screen-1", 0).columns.map((column) => column.windows)), [
+  ["close-pending-1"],
+  ["close-pending-2"]
+]);
+
 const workspaceActionWindow = { internalId: "workspace-action", output: "screen-1" };
 const workspaceActionDirections = [];
 const workspaceActionAdapter = api.createKWinAdapter({
